@@ -938,3 +938,18 @@ select {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* ===== Starting XI Selector ===== */
+.xi-row {
+  transition: background-color 0.15s ease;
+}
+.xi-row:hover {
+  background-color: rgba(0, 255, 65, 0.08);
+}
+.xi-selected {
+  background-color: rgba(0, 255, 65, 0.12) !important;
+  border-left: 3px solid var(--color-primary);
+}
+.xi-selected:hover {
+  background-color: rgba(0, 255, 65, 0.18) !important;
+}

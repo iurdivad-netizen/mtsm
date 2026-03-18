@@ -123,13 +123,28 @@ const MTSM_ENGINE = (() => {
   };
 
   // ===== MATCH SIMULATION =====
+  function getStartingEleven(team) {
+    const available = team.players.filter(p => p.injured === 0);
+    if (available.length < 11) return available; // not enough
+
+    // If team has a manual startingXI, use it (filter out injured)
+    if (team.startingXI && team.startingXI.length === 11) {
+      const manual = team.startingXI
+        .map(id => available.find(p => p.id === id))
+        .filter(Boolean);
+      if (manual.length === 11) return manual;
+    }
+
+    // Fallback: auto-pick best 11 by overall
+    const sorted = [...available].sort((a, b) => b.overall - a.overall);
+    return sorted.slice(0, 11);
+  }
+
   function calculateTeamStrength(team) {
     const available = team.players.filter(p => p.injured === 0);
     if (available.length < 11) return 30; // penalty for insufficient players
 
-    // Pick best 11
-    const sorted = [...available].sort((a, b) => b.overall - a.overall);
-    const starting = sorted.slice(0, 11);
+    const starting = getStartingEleven(team);
 
     let strength = 0;
     for (const p of starting) {
@@ -1017,6 +1032,35 @@ const MTSM_ENGINE = (() => {
     return { success: true, msg: `Formation set to ${formationName}.` };
   }
 
+  // ===== SET STARTING XI =====
+  function setStartingXI(playerIds, teamObj) {
+    if (!playerIds || playerIds.length !== 11) {
+      return { success: false, msg: 'You must select exactly 11 players.' };
+    }
+    // Validate all IDs belong to this team and aren't injured
+    const available = teamObj.players.filter(p => p.injured === 0);
+    const valid = playerIds.every(id => available.find(p => p.id === id));
+    if (!valid) return { success: false, msg: 'One or more selected players are injured or not in the squad.' };
+
+    // Check for a GK
+    const hasGK = playerIds.some(id => {
+      const p = teamObj.players.find(pl => pl.id === id);
+      return p && p.position === 'GK';
+    });
+    if (!hasGK) return { success: false, msg: 'You must include at least one goalkeeper.' };
+
+    teamObj.startingXI = [...playerIds];
+    return { success: true, msg: 'Starting XI updated.' };
+  }
+
+  function autoSelectXI(teamObj) {
+    const available = teamObj.players.filter(p => p.injured === 0);
+    const sorted = [...available].sort((a, b) => b.overall - a.overall);
+    const best11 = sorted.slice(0, 11);
+    teamObj.startingXI = best11.map(p => p.id);
+    return { success: true, msg: 'Auto-selected best 11 players.' };
+  }
+
   // ===== SAVE / LOAD =====
   function saveGame() {
     if (!state) return null;
@@ -1050,6 +1094,9 @@ const MTSM_ENGINE = (() => {
     loadGame,
     signYouthPlayer,
     setFormation,
+    setStartingXI,
+    autoSelectXI,
+    getStartingEleven,
     FORMATIONS,
     CUP_PRIZE_MONEY
   };

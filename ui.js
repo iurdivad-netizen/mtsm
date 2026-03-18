@@ -289,11 +289,9 @@ const MTSM_UI = (() => {
           <button class="icon-btn ${subView === 'training' ? 'active' : ''}" onclick="MTSM_UI.renderGame('training')">
             <span class="icon">🏋️</span>Train
           </button>
-          ${state.options.formationStrategy ? `
-            <button class="icon-btn ${subView === 'tactics' ? 'active' : ''}" onclick="MTSM_UI.renderGame('tactics')">
-              <span class="icon">📋</span>Tactics
-            </button>
-          ` : ''}
+          <button class="icon-btn ${subView === 'tactics' ? 'active' : ''}" onclick="MTSM_UI.renderGame('tactics')">
+            <span class="icon">📋</span>Tactics
+          </button>
           <button class="icon-btn ${subView === 'transfers' ? 'active' : ''}" onclick="MTSM_UI.renderGame('transfers')">
             <span class="icon">💰</span>Transfer
           </button>
@@ -755,41 +753,119 @@ const MTSM_UI = (() => {
     `;
   }
 
-  // ===== TACTICS (Formation Strategy) =====
+  // ===== TACTICS (Formation + Starting XI) =====
   function renderTactics() {
     const state = MTSM_ENGINE.getState();
-    if (!state.options.formationStrategy) return '<div class="text-muted">Formation strategy is disabled.</div>';
-
     const team = MTSM_ENGINE.getCurrentHumanTeam();
-    const currentFormation = team.formation || '4-4-2';
-    const formations = MTSM_ENGINE.FORMATIONS;
+    const available = team.players.filter(p => p.injured === 0);
+    const injured = team.players.filter(p => p.injured > 0);
+    const startingIds = team.startingXI || [];
+    const positions = ['GK', 'DEF', 'MID', 'FWD'];
+    const sorted = [...available].sort((a, b) => positions.indexOf(a.position) - positions.indexOf(b.position) || b.overall - a.overall);
 
-    const formationDescriptions = {
-      '4-4-2': 'Balanced classic. No positional bonuses — the safe default.',
-      '4-3-3': 'Attacking width. +3 strength bonus when you have enough forwards.',
-      '3-5-2': 'Midfield overload. +4 bonus from midfield dominance (stacks with midfield loading quirk).',
-      '5-3-2': 'Defensive wall. +3 bonus from a packed defence.',
-      '4-5-1': 'Midfield control. +3 midfield bonus and +1 defensive stability.',
-      '3-4-3': 'All-out attack. +4 bonus from forward firepower, but exposed at the back.'
-    };
+    // Count selected
+    const selectedCount = startingIds.filter(id => available.find(p => p.id === id)).length;
+
+    // Formation section (only if feature is on)
+    let formationHtml = '';
+    if (state.options.formationStrategy) {
+      const currentFormation = team.formation || '4-4-2';
+      const formations = MTSM_ENGINE.FORMATIONS;
+      const formationDescriptions = {
+        '4-4-2': 'Balanced. No bonus — the safe default.',
+        '4-3-3': 'Attacking width. +3 with enough forwards.',
+        '3-5-2': 'Midfield overload. +4 midfield bonus.',
+        '5-3-2': 'Defensive wall. +3 from packed defence.',
+        '4-5-1': 'Control. +3 midfield, +1 defensive.',
+        '3-4-3': 'All-out attack. +4 forward bonus.'
+      };
+      formationHtml = `
+        <div style="font-family:var(--font-display);font-size:10px;color:var(--color-accent);margin-bottom:8px;">FORMATION</div>
+        <div class="formation-grid mb-4">
+          ${Object.keys(formations).map(f => `
+            <div class="formation-card ${f === currentFormation ? 'formation-active' : ''}" onclick="MTSM_UI._setFormation('${f}')">
+              <div class="formation-name">${f}</div>
+              <div class="formation-layout">
+                <span class="pos-gk">GK</span>
+                <span class="pos-def">${formations[f].DEF} DEF</span>
+                <span class="pos-mid">${formations[f].MID} MID</span>
+                <span class="pos-fwd">${formations[f].FWD} FWD</span>
+              </div>
+              <div class="formation-desc">${formationDescriptions[f]}</div>
+              ${f === currentFormation ? '<div class="text-accent" style="font-size:10px;font-family:var(--font-display);margin-top:4px;">SELECTED</div>' : ''}
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    // Position counts for current starting XI
+    const startingPlayers = startingIds.map(id => available.find(p => p.id === id)).filter(Boolean);
+    const posCounts = { GK: 0, DEF: 0, MID: 0, FWD: 0 };
+    startingPlayers.forEach(p => { posCounts[p.position] = (posCounts[p.position] || 0) + 1; });
 
     return `
-      <div class="panel-header">📋 TACTICS — Formation</div>
-      <div class="text-muted mb-4" style="font-size:13px;">Choose your formation. Bonuses apply when you have enough players in the right positions.</div>
-      <div class="formation-grid">
-        ${Object.keys(formations).map(f => `
-          <div class="formation-card ${f === currentFormation ? 'formation-active' : ''}" onclick="MTSM_UI._setFormation('${f}')">
-            <div class="formation-name">${f}</div>
-            <div class="formation-layout">
-              <span class="pos-gk">GK</span>
-              <span class="pos-def">${formations[f].DEF} DEF</span>
-              <span class="pos-mid">${formations[f].MID} MID</span>
-              <span class="pos-fwd">${formations[f].FWD} FWD</span>
-            </div>
-            <div class="formation-desc">${formationDescriptions[f]}</div>
-            ${f === currentFormation ? '<div class="text-accent" style="font-size:10px;font-family:var(--font-display);margin-top:4px;">SELECTED</div>' : ''}
-          </div>
-        `).join('')}
+      <div class="panel-header">📋 TACTICS — Starting XI</div>
+      <div class="text-muted mb-4" style="font-size:13px;">Select your starting 11 players. Click to toggle. Subs will be on the bench.</div>
+
+      ${formationHtml}
+
+      <div style="font-family:var(--font-display);font-size:10px;color:var(--color-accent);margin-bottom:8px;">
+        STARTING XI
+        <span style="float:right;color:${selectedCount === 11 ? 'var(--color-success)' : selectedCount > 11 ? 'var(--color-danger)' : 'var(--color-text-muted)'}">
+          ${selectedCount}/11 selected
+          ${selectedCount === 11 ? ' ✓' : ''}
+          &nbsp;(GK:${posCounts.GK} DEF:${posCounts.DEF} MID:${posCounts.MID} FWD:${posCounts.FWD})
+        </span>
+      </div>
+
+      <div class="btn-group mb-4">
+        <button class="btn btn-small" onclick="MTSM_UI._autoSelectXI()">AUTO-SELECT BEST XI</button>
+        <button class="btn btn-small" onclick="MTSM_UI._clearXI()">CLEAR ALL</button>
+        <button class="btn btn-small btn-accent" onclick="MTSM_UI._confirmXI()" ${selectedCount !== 11 ? 'disabled style="opacity:0.4"' : ''}>CONFIRM XI</button>
+      </div>
+
+      <div style="overflow-x:auto;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th></th><th>Pos</th><th>Name</th><th>Age</th>
+              ${MTSM_DATA.SKILLS.map(s => `<th>${s.substring(0, 3)}</th>`).join('')}
+              <th>Ovr</th><th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${sorted.map(p => {
+              const isSelected = startingIds.includes(p.id);
+              return `
+                <tr class="xi-row ${isSelected ? 'xi-selected' : ''}" onclick="MTSM_UI._toggleXI('${p.id}')" style="cursor:pointer;">
+                  <td style="text-align:center;font-size:16px;">${isSelected ? '⚽' : '○'}</td>
+                  <td class="pos-${p.position.toLowerCase()}">${p.position}</td>
+                  <td>${p.name}</td>
+                  <td class="num">${p.age}</td>
+                  ${MTSM_DATA.SKILLS.map(s => `<td class="num">${p.skills[s]}</td>`).join('')}
+                  <td class="num text-accent">${p.overall}</td>
+                  <td>${isSelected ? '<span class="text-success">STARTING</span>' : '<span class="text-muted">Bench</span>'}</td>
+                </tr>
+              `;
+            }).join('')}
+            ${injured.map(p => `
+              <tr class="relegation" style="opacity:0.5;">
+                <td style="text-align:center;">✕</td>
+                <td class="pos-${p.position.toLowerCase()}">${p.position}</td>
+                <td>${p.name}</td>
+                <td class="num">${p.age}</td>
+                ${MTSM_DATA.SKILLS.map(s => `<td class="num">${p.skills[s]}</td>`).join('')}
+                <td class="num">${p.overall}</td>
+                <td><span class="text-danger">INJ ${p.injured}w</span></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div class="mt-2 text-muted" style="font-size:12px;">
+        Team strength: ${MTSM_ENGINE.calculateTeamStrength(team).toFixed(1)}
+        • If no XI is set, the best 11 by overall are auto-selected on match day.
       </div>
     `;
   }
@@ -799,6 +875,46 @@ const MTSM_UI = (() => {
     const result = MTSM_ENGINE.setFormation(f, team);
     showNotification(result.msg, !result.success);
     renderGame('tactics');
+  }
+
+  function _toggleXI(playerId) {
+    const team = MTSM_ENGINE.getCurrentHumanTeam();
+    if (!team.startingXI) team.startingXI = [];
+    const idx = team.startingXI.indexOf(playerId);
+    if (idx >= 0) {
+      team.startingXI.splice(idx, 1);
+    } else {
+      if (team.startingXI.length >= 11) {
+        showNotification('Already have 11 selected. Remove one first.', true);
+        return;
+      }
+      team.startingXI.push(playerId);
+    }
+    renderGame('tactics');
+  }
+
+  function _autoSelectXI() {
+    const team = MTSM_ENGINE.getCurrentHumanTeam();
+    const result = MTSM_ENGINE.autoSelectXI(team);
+    showNotification(result.msg, !result.success);
+    renderGame('tactics');
+  }
+
+  function _clearXI() {
+    const team = MTSM_ENGINE.getCurrentHumanTeam();
+    team.startingXI = [];
+    renderGame('tactics');
+  }
+
+  function _confirmXI() {
+    const team = MTSM_ENGINE.getCurrentHumanTeam();
+    if (!team.startingXI || team.startingXI.length !== 11) {
+      showNotification('Select exactly 11 players first.', true);
+      return;
+    }
+    const result = MTSM_ENGINE.setStartingXI(team.startingXI, team);
+    showNotification(result.msg, !result.success);
+    if (result.success) renderGame('tactics');
   }
 
   // ===== YOUTH ACADEMY =====
@@ -1329,7 +1445,11 @@ const MTSM_UI = (() => {
     _signYouth,
     _submitBid,
     _showNegotiationModal,
-    _showCounterOfferModal
+    _showCounterOfferModal,
+    _toggleXI,
+    _autoSelectXI,
+    _clearXI,
+    _confirmXI
   };
 
 })();
