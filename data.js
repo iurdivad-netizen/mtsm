@@ -184,7 +184,14 @@ const MTSM_DATA = (() => {
     const secondHalf = fixtures.map(round =>
       round.map(([h, a]) => [a, h])
     );
-    return [...fixtures, ...secondHalf];
+    // Shuffle round order so teams alternate home/away instead of
+    // playing long consecutive stretches of only home or only away.
+    const allRounds = [...fixtures, ...secondHalf];
+    for (let i = allRounds.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [allRounds[i], allRounds[j]] = [allRounds[j], allRounds[i]];
+    }
+    return allRounds;
   }
 
   // Generate transfer market pool (extra players not on any team)
