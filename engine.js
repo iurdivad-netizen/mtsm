@@ -223,7 +223,7 @@ const MTSM_ENGINE = (() => {
   }
 
   function pushNews(entry) {
-    pushNews(entry);
+    state.news.push(entry);
     state.newsLog.push({ ...entry, season: state.season, week: state.week });
     // Keep log capped at 200 entries
     if (state.newsLog.length > 200) state.newsLog.splice(0, state.newsLog.length - 200);
