@@ -184,14 +184,62 @@ const MTSM_DATA = (() => {
     const secondHalf = fixtures.map(round =>
       round.map(([h, a]) => [a, h])
     );
-    // Shuffle round order so teams alternate home/away instead of
-    // playing long consecutive stretches of only home or only away.
+    // Reorder rounds so no team plays more than 2 consecutive
+    // home or away games, ensuring steady gate income.
     const allRounds = [...fixtures, ...secondHalf];
-    for (let i = allRounds.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [allRounds[i], allRounds[j]] = [allRounds[j], allRounds[i]];
+    const MAX_CONSEC = 2;
+
+    function tryOrder() {
+      // Greedy pick: choose round with fewest constraint violations
+      const ordered = [];
+      const cH = new Array(n).fill(0);
+      const cA = new Array(n).fill(0);
+      const used = new Array(allRounds.length).fill(false);
+      for (let pick = 0; pick < allRounds.length; pick++) {
+        let bestScore = Infinity;
+        const cands = [];
+        for (let r = 0; r < allRounds.length; r++) {
+          if (used[r]) continue;
+          let v = 0;
+          for (const [h, a] of allRounds[r]) {
+            if (cH[h] >= MAX_CONSEC) v++;
+            if (cA[a] >= MAX_CONSEC) v++;
+          }
+          if (v < bestScore) { bestScore = v; cands.length = 0; cands.push(r); }
+          else if (v === bestScore) cands.push(r);
+        }
+        const idx = cands[Math.floor(Math.random() * cands.length)];
+        used[idx] = true;
+        ordered.push(allRounds[idx]);
+        for (const [h, a] of allRounds[idx]) {
+          cH[h]++; cA[a]++; cH[a] = 0; cA[h] = 0;
+        }
+      }
+      // Check max consecutive for any team
+      let worst = 0;
+      for (let t = 0; t < n; t++) {
+        let ch = 0, ca = 0;
+        for (const round of ordered) {
+          let isHome = false;
+          for (const [h, a] of round) {
+            if (h === t) isHome = true;
+            if (a === t) isHome = false;
+          }
+          if (isHome) { ch++; ca = 0; } else { ca++; ch = 0; }
+          if (ch > worst) worst = ch;
+          if (ca > worst) worst = ca;
+        }
+      }
+      return { ordered, worst };
     }
-    return allRounds;
+
+    // Retry until we get max 2 consecutive (typically 1-3 attempts)
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const { ordered, worst } = tryOrder();
+      if (worst <= MAX_CONSEC) return ordered;
+    }
+    // Fallback: return best-effort from last attempt
+    return tryOrder().ordered;
   }
 
   // Generate transfer market pool (extra players not on any team)
