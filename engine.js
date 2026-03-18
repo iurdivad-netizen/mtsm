@@ -84,6 +84,7 @@ const MTSM_ENGINE = (() => {
       })),
       phase: 'menu', // menu, match_day, end_season, game_over
       news: [],
+      newsLog: [],
       matchResults: [],
       seasonOver: false,
       options: gameOptions,
@@ -221,6 +222,13 @@ const MTSM_ENGINE = (() => {
     return { homeGoals, awayGoals };
   }
 
+  function pushNews(entry) {
+    pushNews(entry);
+    state.newsLog.push({ ...entry, season: state.season, week: state.week });
+    // Keep log capped at 200 entries
+    if (state.newsLog.length > 200) state.newsLog.splice(0, state.newsLog.length - 200);
+  }
+
   function playMatchDay() {
     state.matchResults = [];
     state.news = [];
@@ -336,7 +344,7 @@ const MTSM_ENGINE = (() => {
         if (hp.boardConfidence <= 10) {
           hp.sacked = true;
           team.isHuman = false;
-          state.news.push({
+          pushNews({
             type: 'SACKED',
             text: `The board has SACKED ${hp.name} as manager of ${team.name}! Confidence was at rock bottom.`
           });
@@ -354,7 +362,7 @@ const MTSM_ENGINE = (() => {
       for (let i = 0; i < state.humanPlayers.length; i++) {
         if (state.humanPlayers[i].sacked) continue;
         state.youthAcademy[i] = generateYouthPlayers(3);
-        state.news.push({ type: 'ACADEMY', text: 'New youth prospects have arrived at the academy!' });
+        pushNews({ type: 'ACADEMY', text: 'New youth prospects have arrived at the academy!' });
       }
     }
 
@@ -365,7 +373,7 @@ const MTSM_ENGINE = (() => {
       if (team.balance < -50000) {
         hp.sacked = true;
         team.isHuman = false;
-        state.news.push({
+        pushNews({
           type: 'SACKED',
           text: `${hp.name} has been SACKED as manager of ${team.name} due to massive debt!`
         });
@@ -402,6 +410,7 @@ const MTSM_ENGINE = (() => {
         const coachQ = team.staff.Coach.quality;
         for (const player of team.players) {
           if (player.training && player.injured === 0) {
+            const oldSkill = player.skills[player.training];
             // Youth players with high potential train faster
             let trainChance = 0.3 + coachQ * 0.1;
             if (state.options.youthAcademy && player.isYouth && player.potential) {
@@ -420,9 +429,14 @@ const MTSM_ENGINE = (() => {
                 player.skills[sk] = Math.max(1, player.skills[sk] - decline);
               }
             }
+            const oldOvr = player.overall;
             player.overall = Math.round(
               Object.values(player.skills).reduce((a, b) => a + b, 0) / MTSM_DATA.SKILLS.length
             );
+            // Log training news for human teams
+            if (team.isHuman && improvement > 0) {
+              pushNews({ type: 'TRAINING', text: `${player.name} improved ${player.training} (${oldSkill}→${player.skills[player.training]}).` });
+            }
           }
         }
       }
@@ -436,6 +450,9 @@ const MTSM_ENGINE = (() => {
           if (player.injured > 0) {
             const physioQ = team.staff.Physio.quality;
             player.injured = Math.max(0, player.injured - 1 - (physioQ >= 3 ? 1 : 0));
+            if (team.isHuman && player.injured === 0) {
+              pushNews({ type: 'RECOVERY', text: `${player.name} has recovered from injury and is available for selection.` });
+            }
           }
         }
       }
@@ -520,7 +537,7 @@ const MTSM_ENGINE = (() => {
       }
 
       if (eventText) {
-        state.news.push({ type: eventTemplate.type.toUpperCase(), text: eventText });
+        pushNews({ type: eventTemplate.type.toUpperCase(), text: eventText });
       }
     }
   }
@@ -572,6 +589,7 @@ const MTSM_ENGINE = (() => {
       delete player.askingPrice;
       teamObj.players.push(player);
       state.transferPool.splice(idx, 1);
+      if (teamObj.isHuman) pushNews({ type: 'TRANSFER', text: `${player.name} (${player.position}, OVR ${player.overall}) signed for £${finalPrice.toLocaleString()}.` });
       return { success: true, msg: `${player.name} signed for £${finalPrice.toLocaleString()} after negotiations!` };
     }
 
@@ -583,6 +601,7 @@ const MTSM_ENGINE = (() => {
     delete player.askingPrice;
     teamObj.players.push(player);
     state.transferPool.splice(idx, 1);
+    if (teamObj.isHuman) pushNews({ type: 'TRANSFER', text: `${player.name} (${player.position}, OVR ${player.overall}) signed for £${finalPrice.toLocaleString()}.` });
     return { success: true, msg: `${player.name} signed for £${finalPrice.toLocaleString()}!` };
   }
 
@@ -595,6 +614,7 @@ const MTSM_ENGINE = (() => {
     const salePrice = Math.round(player.value * (0.7 + Math.random() * 0.5));
     teamObj.balance += salePrice;
     player.askingPrice = Math.round(salePrice * 1.2);
+    if (teamObj.isHuman) pushNews({ type: 'TRANSFER', text: `${player.name} (${player.position}, OVR ${player.overall}) sold for £${salePrice.toLocaleString()}.` });
     state.transferPool.push(player);
     teamObj.players.splice(idx, 1);
     return { success: true, msg: `${player.name} sold for £${salePrice.toLocaleString()}!` };
@@ -607,6 +627,7 @@ const MTSM_ENGINE = (() => {
     const newQuality = current.quality + 1;
     const newWage = MTSM_DATA.STAFF_COSTS[newQuality];
     teamObj.staff[role] = { quality: newQuality, wage: newWage };
+    if (teamObj.isHuman) pushNews({ type: 'STAFF', text: `${role} upgraded to ${MTSM_DATA.STAFF_QUALITIES[newQuality]}.` });
     return { success: true, msg: `${role} upgraded to ${MTSM_DATA.STAFF_QUALITIES[newQuality]}!` };
   }
 
@@ -616,6 +637,7 @@ const MTSM_ENGINE = (() => {
     const newQuality = current.quality - 1;
     const newWage = MTSM_DATA.STAFF_COSTS[newQuality];
     teamObj.staff[role] = { quality: newQuality, wage: newWage };
+    if (teamObj.isHuman) pushNews({ type: 'STAFF', text: `${role} downgraded to ${MTSM_DATA.STAFF_QUALITIES[newQuality]}.` });
     return { success: true, msg: `${role} downgraded to ${MTSM_DATA.STAFF_QUALITIES[newQuality]}.` };
   }
 
@@ -628,6 +650,7 @@ const MTSM_ENGINE = (() => {
     if (teamObj.balance < cost) return { success: false, msg: `Insufficient funds. Need £${cost.toLocaleString()}.` };
     teamObj.balance -= cost;
     teamObj.ground[aspect]++;
+    if (teamObj.isHuman) pushNews({ type: 'GROUND', text: `${aspect.charAt(0).toUpperCase() + aspect.slice(1)} upgraded for £${cost.toLocaleString()}.` });
     return { success: true, msg: `${aspect.charAt(0).toUpperCase() + aspect.slice(1)} upgraded! Cost: £${cost.toLocaleString()}` };
   }
 
@@ -668,7 +691,7 @@ const MTSM_ENGINE = (() => {
       // Division 4 bottom team gets "League Joker" trophy
       if (d === 3) {
         const lastTeam = sorted[15];
-        state.news.push({
+        pushNews({
           type: 'TROPHY',
           text: `${lastTeam.name} wins the legendary "League Joker" trophy for finishing bottom of Division 4!`
         });
@@ -678,7 +701,7 @@ const MTSM_ENGINE = (() => {
     // Execute promotions and relegations
     for (const promo of promotions) {
       moveTeamBetweenDivisions(promo.team, promo.fromDiv, promo.toDiv);
-      state.news.push({
+      pushNews({
         type: 'PROMOTION',
         text: `${promo.team.name} promoted from Division ${promo.fromDiv + 1} to Division ${promo.toDiv + 1}!`
       });
@@ -686,7 +709,7 @@ const MTSM_ENGINE = (() => {
 
     for (const releg of relegations) {
       moveTeamBetweenDivisions(releg.team, releg.fromDiv, releg.toDiv);
-      state.news.push({
+      pushNews({
         type: 'RELEGATION',
         text: `${releg.team.name} relegated from Division ${releg.fromDiv + 1} to Division ${releg.toDiv + 1}!`
       });
@@ -712,7 +735,7 @@ const MTSM_ENGINE = (() => {
         // Auto-retire very old players
         const retired = team.players.filter(p => p.age >= 37);
         for (const r of retired) {
-          state.news.push({ type: 'RETIREMENT', text: `${r.name} (${team.name}) retires at age ${r.age}.` });
+          pushNews({ type: 'RETIREMENT', text: `${r.name} (${team.name}) retires at age ${r.age}.` });
         }
         team.players = team.players.filter(p => p.age < 37);
 
@@ -885,13 +908,13 @@ const MTSM_ENGINE = (() => {
           divCup.finished = true;
           if (winners.length === 1) {
             divCup.winner = winners[0];
-            state.news.push({ type: 'CUP', text: `${winners[0]} wins the Division ${d + 1} Cup!` });
+            pushNews({ type: 'CUP', text: `${winners[0]} wins the Division ${d + 1} Cup!` });
             // Award winner prize
             const winnerTeam = state.divisions[d].teams.find(t => t.name === winners[0]);
             if (winnerTeam) {
               const prize = CUP_PRIZE_MONEY[d][5];
               winnerTeam.balance += prize;
-              state.news.push({ type: 'CUP', text: `${winners[0]} receives \u00a3${prize.toLocaleString()} cup winner prize money!` });
+              pushNews({ type: 'CUP', text: `${winners[0]} receives \u00a3${prize.toLocaleString()} cup winner prize money!` });
             }
           }
           continue;
@@ -957,7 +980,7 @@ const MTSM_ENGINE = (() => {
         if (homeTeam.isHuman || awayTeam.isHuman) {
           const cupRoundNames = ['Round 1', 'Round 2', 'Quarter-Final', 'Semi-Final', 'FINAL'];
           const roundName = cupRoundNames[Math.min(divCup.currentRound, 4)];
-          state.news.push({
+          pushNews({
             type: 'CUP',
             text: `Cup ${roundName}: ${match.home} ${result.homeGoals}-${result.awayGoals} ${match.away}. ${winner} advances! (\u00a3${prize.toLocaleString()} prize)`
           });
@@ -1071,6 +1094,7 @@ const MTSM_ENGINE = (() => {
     if (!savedState || !savedState.divisions) return false;
     // Ensure options exist for backward compatibility
     if (!savedState.options) savedState.options = { ...DEFAULT_OPTIONS };
+    if (!savedState.newsLog) savedState.newsLog = [];
     state = savedState;
     return true;
   }

@@ -323,6 +323,9 @@ const MTSM_UI = (() => {
           <button class="icon-btn ${subView === 'results' ? 'active' : ''}" onclick="MTSM_UI.renderGame('results')">
             <span class="icon">📊</span>Results
           </button>
+          <button class="icon-btn ${subView === 'news' ? 'active' : ''}" onclick="MTSM_UI.renderGame('news')">
+            <span class="icon">📰</span>News
+          </button>
           <button class="icon-btn" onclick="MTSM_UI._playMatchDay()" style="border-color:var(--color-accent);color:var(--color-accent);">
             <span class="icon">⚽</span>Play
           </button>
@@ -349,6 +352,7 @@ const MTSM_UI = (() => {
       case 'staff': return renderStaff();
       case 'ground': return renderGround();
       case 'results': return renderResults();
+      case 'news': return renderNewsBoard();
       default: return renderMenu();
     }
   }
@@ -517,6 +521,47 @@ const MTSM_UI = (() => {
       if (p.position === position) p.training = value;
     }
     renderGame('training');
+  }
+
+  // ===== NEWS BOARD =====
+  let _newsFilter = 'ALL';
+
+  function renderNewsBoard() {
+    const state = MTSM_ENGINE.getState();
+    const log = state.newsLog || [];
+    const types = ['ALL', ...new Set(log.map(n => n.type))];
+    const filtered = _newsFilter === 'ALL' ? log : log.filter(n => n.type === _newsFilter);
+    const reversed = [...filtered].reverse();
+
+    return `
+      <div class="panel-header">📰 NEWS BOARD</div>
+      <div style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;">
+        <span style="font-size:12px;font-weight:bold;margin-right:4px;">Filter:</span>
+        ${types.map(t => `
+          <button class="btn btn-small${_newsFilter === t ? ' active' : ''}"
+            onclick="MTSM_UI._filterNews('${t}')"
+            style="font-size:11px;padding:2px 8px;${_newsFilter === t ? 'background:var(--color-accent);color:var(--color-bg);' : ''}">
+            ${t}
+          </button>
+        `).join('')}
+      </div>
+      ${reversed.length === 0 ? '<div class="text-muted">No news yet. Play some matches!</div>' : `
+        <div style="max-height:500px;overflow-y:auto;">
+          ${reversed.map(n => `
+            <div class="news-item" style="padding:4px 8px;border-bottom:1px solid var(--color-border);font-size:13px;">
+              <span class="text-muted" style="font-size:11px;">S${n.season} W${n.week}</span>
+              <span class="event-type" style="font-size:11px;margin:0 6px;">[${n.type}]</span>
+              ${n.text}
+            </div>
+          `).join('')}
+        </div>
+      `}
+    `;
+  }
+
+  function _filterNews(type) {
+    _newsFilter = type;
+    renderGame('news');
   }
 
   // ===== TRANSFERS =====
@@ -1488,6 +1533,7 @@ const MTSM_UI = (() => {
     _startGame: _startGame,
     _setTraining,
     _setGroupTraining,
+    _filterNews,
     _buyPlayer,
     _sellPlayer,
     _upgradeStaff,
