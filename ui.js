@@ -93,14 +93,11 @@ const MTSM_UI = (() => {
           <input type="text" id="pname-${i}" value="Manager ${i + 1}" maxlength="20">
           <label>SELECT TEAM (Division 4)</label>
           <select id="pteam-${i}" onchange="MTSM_UI._validateTeamSelection()">
+            <option value="random">🎲 Random</option>
             ${div4Teams.map((t, idx) => `<option value="${idx}">${t}</option>`).join('')}
           </select>
         </div>
       `;
-    }
-    // Auto-assign different teams
-    for (let i = 0; i < n; i++) {
-      document.getElementById(`pteam-${i}`).selectedIndex = i;
     }
   }
 
@@ -115,11 +112,27 @@ const MTSM_UI = (() => {
   function _startGame() {
     const humanPlayers = [];
     const usedTeams = new Set();
+    const allIndices = [...Array(16).keys()]; // 0-15 for Division 4
+
     for (let i = 0; i < _numPlayers; i++) {
       const name = document.getElementById(`pname-${i}`).value.trim() || `Manager ${i + 1}`;
-      const teamIdx = parseInt(document.getElementById(`pteam-${i}`).value);
+      const rawVal = document.getElementById(`pteam-${i}`).value;
+      let teamIdx;
+
+      if (rawVal === 'random') {
+        // Pick a random team not already taken
+        const available = allIndices.filter(idx => !usedTeams.has(idx));
+        if (available.length === 0) {
+          showNotification('No teams left to assign randomly!', true);
+          return;
+        }
+        teamIdx = available[Math.floor(Math.random() * available.length)];
+      } else {
+        teamIdx = parseInt(rawVal);
+      }
+
       if (usedTeams.has(teamIdx)) {
-        alert('Each player must select a different team!');
+        showNotification('Each player must have a different team! Adjust your selections.', true);
         return;
       }
       usedTeams.add(teamIdx);
