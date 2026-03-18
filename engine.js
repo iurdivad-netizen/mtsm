@@ -631,6 +631,18 @@ const MTSM_ENGINE = (() => {
     }));
   }
 
+  // ===== SAVE / LOAD =====
+  function saveGame() {
+    if (!state) return null;
+    return JSON.parse(JSON.stringify(state)); // deep clone
+  }
+
+  function loadGame(savedState) {
+    if (!savedState || !savedState.divisions) return false;
+    state = savedState;
+    return true;
+  }
+
   return {
     initGame,
     getState,
@@ -645,7 +657,9 @@ const MTSM_ENGINE = (() => {
     processEndOfSeason,
     getLeagueTable,
     getNextFixtures,
-    calculateTeamStrength
+    calculateTeamStrength,
+    saveGame,
+    loadGame
   };
 
 })();

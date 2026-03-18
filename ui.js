@@ -41,8 +41,10 @@ const MTSM_UI = (() => {
         </div>
         <div style="display:flex;flex-direction:column;gap:12px;align-items:center;">
           <button class="btn btn-accent" onclick="MTSM_UI.renderSetup()">NEW GAME</button>
+          <button class="btn" onclick="MTSM_UI._triggerLoad()">LOAD GAME</button>
           <div class="text-muted" style="font-size:14px;">Up to 4 players • 64 teams • 4 divisions</div>
         </div>
+        <input type="file" id="load-file-input" accept=".json" style="display:none;" onchange="MTSM_UI._handleLoadFile(event)">
       </div>
     `;
   }
@@ -151,8 +153,11 @@ const MTSM_UI = (() => {
             <span>Season <span class="value">${state.season}</span></span>
             <span>Week <span class="value">${state.week}</span></span>
             <span>Balance <span class="value ${team.balance < 0 ? 'text-danger' : ''}">${formatMoney(team.balance)}</span></span>
+            <button class="btn btn-small" onclick="MTSM_UI._saveGame()" title="Save game to file">💾 SAVE</button>
+            <button class="btn btn-small" onclick="MTSM_UI._triggerLoad()" title="Load game from file">📂 LOAD</button>
           </div>
         </div>
+        <input type="file" id="load-file-input" accept=".json" style="display:none;" onchange="MTSM_UI._handleLoadFile(event)">
 
         ${state.humanPlayers.filter(h => !h.sacked).length > 1 ? `
           <div class="tab-bar">
@@ -881,6 +886,69 @@ const MTSM_UI = (() => {
   // ===== NOTIFICATION SYSTEM =====
   // Injected into the DOM via renderGame
 
+  // ===== SAVE / LOAD =====
+  function _saveGame() {
+    const data = MTSM_ENGINE.saveGame();
+    if (!data) {
+      showNotification('No game to save!', true);
+      return;
+    }
+    const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const team = MTSM_ENGINE.getCurrentHumanTeam();
+    const hp = data.humanPlayers[data.currentPlayerIndex];
+    const filename = `mtsm_save_s${data.season}_w${data.week}_${(team ? team.name : 'game').replace(/\s+/g, '_')}.json`;
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showNotification(`Game saved: ${filename}`);
+  }
+
+  function _triggerLoad() {
+    // Reset file input so the same file can be re-selected
+    let input = document.getElementById('load-file-input');
+    if (!input) {
+      input = document.createElement('input');
+      input.type = 'file';
+      input.id = 'load-file-input';
+      input.accept = '.json';
+      input.style.display = 'none';
+      input.addEventListener('change', _handleLoadFile);
+      document.body.appendChild(input);
+    }
+    input.value = '';
+    input.click();
+  }
+
+  function _handleLoadFile(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const data = JSON.parse(e.target.result);
+        if (!data.divisions || !data.humanPlayers) {
+          showNotification('Invalid save file!', true);
+          return;
+        }
+        const success = MTSM_ENGINE.loadGame(data);
+        if (success) {
+          showNotification('Game loaded successfully!');
+          renderGame();
+        } else {
+          showNotification('Failed to load save file!', true);
+        }
+      } catch (err) {
+        showNotification('Error reading save file: ' + err.message, true);
+      }
+    };
+    reader.readAsText(file);
+  }
+
   return {
     renderTitle,
     renderSetup,
@@ -898,7 +966,10 @@ const MTSM_UI = (() => {
     _afterMatchDay,
     _transferFilter,
     _showVidiprinter,
-    showNotification
+    showNotification,
+    _saveGame,
+    _triggerLoad,
+    _handleLoadFile
   };
 
 })();

@@ -688,6 +688,31 @@ select {
   margin-bottom: var(--space-4);
 }
 
+/* ===== NOTIFICATION ===== */
+.notification {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-primary);
+  background: rgba(0, 221, 68, 0.1);
+  color: var(--color-primary);
+  font-family: var(--font-display);
+  font-size: 10px;
+  text-align: center;
+  text-shadow: var(--crt-glow);
+  transition: opacity 300ms ease;
+}
+
+.notification.error {
+  border-color: var(--color-danger);
+  background: rgba(255, 51, 68, 0.1);
+  color: var(--color-danger);
+  text-shadow: 0 0 8px rgba(255, 51, 68, 0.3);
+}
+
+.notification.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
 /* ===== UTILITIES ===== */
 .text-center { text-align: center; }
 .text-right { text-align: right; }
