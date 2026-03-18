@@ -747,6 +747,7 @@ const MTSM_UI = (() => {
               <div class="score">vs</div>
               <div class="away">${f.away}${f.awayIsHuman ? ' ★' : ''}</div>
             </div>
+            ${f.homeIsHuman || f.awayIsHuman ? '<div style="font-size:12px;padding:0 8px 8px;color:var(--color-muted);">' + (f.homeIsHuman ? '🏠 HOME — gate income applies' : '✈️ AWAY') + '</div>' : ''}
           `).join('')
         }
       </div>
@@ -1034,9 +1035,22 @@ const MTSM_UI = (() => {
 
   // ===== FINANCES =====
   function renderFinances() {
+    const state = MTSM_ENGINE.getState();
     const team = MTSM_ENGINE.getCurrentHumanTeam();
     const playerWages = team.players.reduce((s, p) => s + p.wage, 0);
     const staffWages = Object.values(team.staff).reduce((s, st) => s + st.wage, 0);
+
+    // Find last home gate income from match results
+    let lastGateIncome = null;
+    let lastAttendance = null;
+    for (const divRes of state.matchResults) {
+      for (const r of divRes.results) {
+        if (r.isHumanMatch && r.home === team.name) {
+          lastGateIncome = r.gateIncome;
+          lastAttendance = r.attendance;
+        }
+      }
+    }
 
     return `
       <div class="panel-header">🏦 FINANCES</div>
@@ -1057,6 +1071,21 @@ const MTSM_UI = (() => {
           <span>Total Weekly Outgoing</span>
           <span class="text-danger">-£${(playerWages + staffWages).toLocaleString()}</span>
         </div>
+        ${lastGateIncome !== null ? `
+        <div class="ground-stat mt-4" style="border-top:1px solid var(--color-border);padding-top:12px;">
+          <span>Last Home Gate Income</span>
+          <span class="text-success">+£${lastGateIncome.toLocaleString()}</span>
+        </div>
+        <div class="ground-stat">
+          <span>Last Home Attendance</span>
+          <span class="text-accent">${lastAttendance.toLocaleString()}</span>
+        </div>
+        ` : `
+        <div class="ground-stat mt-4" style="border-top:1px solid var(--color-border);padding-top:12px;">
+          <span>Home Gate Income</span>
+          <span class="text-muted">No home game yet</span>
+        </div>
+        `}
         <div class="ground-stat mt-4">
           <span>Weeks Until Bankruptcy</span>
           <span class="${team.balance / (playerWages + staffWages) < 5 ? 'text-danger' : 'text-accent'}">
@@ -1065,7 +1094,8 @@ const MTSM_UI = (() => {
         </div>
       </div>
       <div class="mt-4 text-muted" style="font-size:13px;">
-        ⚠ If your balance drops below -£50,000, you will be sacked!
+        ⚠ If your balance drops below -£50,000, you will be sacked!<br>
+        💡 Home matches generate gate income — upgrade ground capacity to earn more!
       </div>
     `;
   }
@@ -1189,13 +1219,22 @@ const MTSM_UI = (() => {
             DIVISION ${divRes.division + 1}
           </div>
           <div class="match-results">
-            ${divRes.results.map(r => `
+            ${divRes.results.map(r => {
+              const team = MTSM_ENGINE.getCurrentHumanTeam();
+              const isHumanHome = r.isHumanMatch && r.home === team.name;
+              const isHumanAway = r.isHumanMatch && r.away === team.name;
+              return `
               <div class="match-result ${r.isHumanMatch ? 'user-match' : ''}">
-                <div class="home">${r.home}</div>
+                <div class="home">${r.home}${isHumanHome ? ' ★' : ''}</div>
                 <div class="score">${r.homeGoals} - ${r.awayGoals}</div>
-                <div class="away">${r.away}</div>
+                <div class="away">${r.away}${isHumanAway ? ' ★' : ''}</div>
               </div>
-            `).join('')}
+              ${r.isHumanMatch ? `<div style="font-size:12px;padding:2px 8px 8px;color:var(--color-muted);display:flex;justify-content:space-between;">
+                <span>${isHumanHome ? '🏠 HOME' : '✈️ AWAY'}</span>
+                <span>Att: ${r.attendance.toLocaleString()}</span>
+                ${isHumanHome ? '<span class="text-success">Gate: +£' + r.gateIncome.toLocaleString() + '</span>' : '<span class="text-muted">No gate income (away)</span>'}
+              </div>` : ''}`;
+            }).join('')}
           </div>
         </div>
       `).join('')}
@@ -1251,10 +1290,12 @@ const MTSM_UI = (() => {
       const line = document.createElement('div');
       line.className = 'result-line';
       const divLabel = `D${r.division + 1}`;
+      const team = MTSM_ENGINE.getCurrentHumanTeam();
+      const isHumanHome = r.isHumanMatch && r.home === team.name;
       line.innerHTML = `
         <span class="text-muted">[${divLabel}]</span>
         ${r.home} <span class="team-score">${r.homeGoals}</span> — <span class="team-score">${r.awayGoals}</span> ${r.away}
-        ${r.isHumanMatch ? ' ★' : ''}
+        ${r.isHumanMatch ? ' ★ ' + (isHumanHome ? '🏠 Att: ' + r.attendance.toLocaleString() + ' Gate: +£' + r.gateIncome.toLocaleString() : '✈️ AWAY') : ''}
       `;
       if (r.isHumanMatch) {
         line.style.color = 'var(--color-primary)';
