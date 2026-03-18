@@ -462,6 +462,17 @@ const MTSM_UI = (() => {
       <div class="text-muted mb-4" style="font-size:13px;">
         Select a skill to train for each player. Better coaches improve training results.
       </div>
+      <div style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;">
+        <span style="font-size:12px;font-weight:bold;margin-right:4px;">Quick set:</span>
+        ${['GK','DEF','MID','FWD'].map(pos => `
+          <select onchange="MTSM_UI._setGroupTraining('${pos}', this.value); this.selectedIndex=0;"
+            style="font-size:11px;padding:2px 4px;">
+            <option value="">All ${pos}s…</option>
+            ${MTSM_DATA.SKILLS.map(s => `<option value="${s}">${s}</option>`).join('')}
+            <option value="_none">— Clear —</option>
+          </select>
+        `).join('')}
+      </div>
       <div style="overflow-x:auto;">
         <table class="data-table">
           <thead>
@@ -497,6 +508,15 @@ const MTSM_UI = (() => {
     if (player) {
       player.training = skill || null;
     }
+  }
+
+  function _setGroupTraining(position, skill) {
+    const team = MTSM_ENGINE.getCurrentHumanTeam();
+    const value = skill === '_none' ? null : (skill || null);
+    for (const p of team.players) {
+      if (p.position === position) p.training = value;
+    }
+    renderGame('training');
   }
 
   // ===== TRANSFERS =====
@@ -1467,6 +1487,7 @@ const MTSM_UI = (() => {
     _validateTeamSelection,
     _startGame: _startGame,
     _setTraining,
+    _setGroupTraining,
     _buyPlayer,
     _sellPlayer,
     _upgradeStaff,
