@@ -5,8 +5,20 @@ const MTSM_ENGINE = (() => {
 
   let state = null;
 
-  function initGame(humanPlayers) {
+  // ===== GAME OPTIONS (toggles) =====
+  const DEFAULT_OPTIONS = {
+    boardConfidence: false,
+    formationStrategy: false,
+    youthAcademy: false,
+    negotiation: false,
+    cupPrizeMoney: false
+  };
+
+  function initGame(humanPlayers, options) {
     // humanPlayers = [{ name: 'Player 1', teamIndex: 0 }, ...]
+    // options = { boardConfidence, formationStrategy, youthAcademy, negotiation, cupPrizeMoney }
+    const gameOptions = { ...DEFAULT_OPTIONS, ...(options || {}) };
+
     // All humans start in Division 4 (index 3)
     const divisions = [];
     for (let d = 0; d < 4; d++) {
@@ -33,9 +45,28 @@ const MTSM_ENGINE = (() => {
       team.humanName = hp.name;
       // Give human teams a small starting bonus
       team.balance += 25000;
+      // Default formation
+      if (gameOptions.formationStrategy) {
+        team.formation = '4-4-2';
+      }
     }
 
     const transferPool = MTSM_DATA.generateTransferPool(200);
+
+    // Generate cup brackets if cup option is on
+    let cup = null;
+    if (gameOptions.cupPrizeMoney) {
+      cup = generateCupBrackets(divisions);
+    }
+
+    // Generate youth academy pools if option is on
+    let youthAcademy = null;
+    if (gameOptions.youthAcademy) {
+      youthAcademy = {};
+      for (let i = 0; i < humanPlayers.length; i++) {
+        youthAcademy[i] = generateYouthPlayers(3);
+      }
+    }
 
     state = {
       divisions,
@@ -48,12 +79,16 @@ const MTSM_ENGINE = (() => {
         ...hp,
         division: 3,
         teamIndex: hp.teamIndex,
-        sacked: false
+        sacked: false,
+        boardConfidence: 50 // starts neutral
       })),
       phase: 'menu', // menu, match_day, end_season, game_over
       news: [],
       matchResults: [],
-      seasonOver: false
+      seasonOver: false,
+      options: gameOptions,
+      cup,
+      youthAcademy
     };
 
     return state;
@@ -77,6 +112,16 @@ const MTSM_ENGINE = (() => {
       }));
   }
 
+  // ===== FORMATION DEFINITIONS =====
+  const FORMATIONS = {
+    '4-4-2': { DEF: 4, MID: 4, FWD: 2, bonus: {} },
+    '4-3-3': { DEF: 4, MID: 3, FWD: 3, bonus: { FWD: 3 } },
+    '3-5-2': { DEF: 3, MID: 5, FWD: 2, bonus: { MID: 4 } },
+    '5-3-2': { DEF: 5, MID: 3, FWD: 2, bonus: { DEF: 3 } },
+    '4-5-1': { DEF: 4, MID: 5, FWD: 1, bonus: { MID: 3, DEF: 1 } },
+    '3-4-3': { DEF: 3, MID: 4, FWD: 3, bonus: { FWD: 4 } }
+  };
+
   // ===== MATCH SIMULATION =====
   function calculateTeamStrength(team) {
     const available = team.players.filter(p => p.injured === 0);
@@ -96,6 +141,20 @@ const MTSM_ENGINE = (() => {
     const mids = starting.filter(p => p.position === 'MID').length;
     if (mids >= 5) strength += 5;
     if (mids >= 6) strength += 3;
+
+    // Formation bonus (if enabled)
+    if (state && state.options && state.options.formationStrategy && team.formation) {
+      const formation = FORMATIONS[team.formation];
+      if (formation && formation.bonus) {
+        for (const [pos, bonus] of Object.entries(formation.bonus)) {
+          const posCount = starting.filter(p => p.position === pos).length;
+          const idealCount = formation[pos] || 0;
+          if (posCount >= idealCount) {
+            strength += bonus;
+          }
+        }
+      }
+    }
 
     // Coach bonus
     const coachQ = team.staff.Coach.quality;
@@ -230,6 +289,60 @@ const MTSM_ENGINE = (() => {
       state.seasonOver = true;
     }
 
+    // Board confidence updates (if enabled)
+    if (state.options.boardConfidence) {
+      for (const hp of state.humanPlayers) {
+        if (hp.sacked) continue;
+        const team = state.divisions[hp.division].teams[hp.teamIndex];
+        // Check last match result for this team
+        for (const divRes of state.matchResults) {
+          for (const r of divRes.results) {
+            if (!r.isHumanMatch) continue;
+            const isHome = r.home === team.name;
+            const isAway = r.away === team.name;
+            if (!isHome && !isAway) continue;
+            const won = (isHome && r.homeGoals > r.awayGoals) || (isAway && r.awayGoals > r.homeGoals);
+            const drew = r.homeGoals === r.awayGoals;
+            if (won) {
+              hp.boardConfidence = Math.min(100, hp.boardConfidence + 6);
+            } else if (drew) {
+              hp.boardConfidence = Math.min(100, hp.boardConfidence + 1);
+            } else {
+              hp.boardConfidence = Math.max(0, hp.boardConfidence - 5);
+            }
+            // Bonus/penalty for league position
+            const table = getLeagueTable(hp.division);
+            const pos = table.findIndex(t => t.name === team.name) + 1;
+            if (pos <= 2) hp.boardConfidence = Math.min(100, hp.boardConfidence + 1);
+            if (pos >= 15) hp.boardConfidence = Math.max(0, hp.boardConfidence - 1);
+          }
+        }
+        // Sack if confidence drops too low
+        if (hp.boardConfidence <= 10) {
+          hp.sacked = true;
+          team.isHuman = false;
+          state.news.push({
+            type: 'SACKED',
+            text: `The board has SACKED ${hp.name} as manager of ${team.name}! Confidence was at rock bottom.`
+          });
+        }
+      }
+    }
+
+    // Cup matches (if enabled)
+    if (state.options.cupPrizeMoney && state.cup) {
+      processCupRound();
+    }
+
+    // Youth academy refresh (if enabled)
+    if (state.options.youthAcademy && state.youthAcademy && state.week % 4 === 0) {
+      for (let i = 0; i < state.humanPlayers.length; i++) {
+        if (state.humanPlayers[i].sacked) continue;
+        state.youthAcademy[i] = generateYouthPlayers(3);
+        state.news.push({ type: 'ACADEMY', text: 'New youth prospects have arrived at the academy!' });
+      }
+    }
+
     // Check if any human is bankrupt
     for (const hp of state.humanPlayers) {
       if (hp.sacked) continue;
@@ -274,7 +387,16 @@ const MTSM_ENGINE = (() => {
         const coachQ = team.staff.Coach.quality;
         for (const player of team.players) {
           if (player.training && player.injured === 0) {
-            const improvement = Math.random() < (0.3 + coachQ * 0.1) ? 1 : 0;
+            // Youth players with high potential train faster
+            let trainChance = 0.3 + coachQ * 0.1;
+            if (state.options.youthAcademy && player.isYouth && player.potential) {
+              trainChance += (player.potential - 50) / 200; // e.g. pot 90 adds +0.2
+              // Youth potential slowly becomes actual skill with age
+              if (player.age <= 21 && player.overall < player.potential) {
+                trainChance += 0.1; // extra youth boost
+              }
+            }
+            const improvement = Math.random() < trainChance ? 1 : 0;
             const decline = Math.random() < 0.08 ? 1 : 0;
             player.skills[player.training] = Math.min(99, player.skills[player.training] + improvement);
             // Slight decline in untrained skills
@@ -389,19 +511,64 @@ const MTSM_ENGINE = (() => {
   }
 
   // ===== TRANSFER ACTIONS =====
-  function buyPlayer(playerId, teamObj) {
+  function buyPlayer(playerId, teamObj, bidAmount) {
     const idx = state.transferPool.findIndex(p => p.id === playerId);
     if (idx === -1) return { success: false, msg: 'Player no longer available.' };
     if (teamObj.players.length >= 16) return { success: false, msg: 'Squad full (max 16 players).' };
 
     const player = state.transferPool[idx];
-    if (teamObj.balance < player.askingPrice) return { success: false, msg: 'Insufficient funds.' };
+    const askingPrice = player.askingPrice || player.value;
 
-    teamObj.balance -= player.askingPrice;
+    // Negotiation mini-game (if enabled and player is expensive enough)
+    if (state.options.negotiation && !bidAmount && askingPrice > 10000) {
+      return {
+        success: false,
+        negotiate: true,
+        playerId,
+        playerName: player.name,
+        askingPrice,
+        minAccept: Math.round(askingPrice * 0.75),
+        msg: `${player.name}'s club wants £${askingPrice.toLocaleString()}. Make an offer!`
+      };
+    }
+
+    // Handle negotiation bid
+    if (state.options.negotiation && bidAmount !== undefined && askingPrice > 10000) {
+      const minAccept = Math.round(askingPrice * 0.75);
+      if (bidAmount < minAccept) {
+        // Counter-offer: club meets halfway
+        const counter = Math.round((askingPrice + bidAmount) / 2);
+        if (counter <= minAccept) {
+          return { success: false, msg: `${player.name}'s club rejected your bid of £${bidAmount.toLocaleString()}. They won't go below £${minAccept.toLocaleString()}.` };
+        }
+        return {
+          success: false,
+          counterOffer: true,
+          playerId,
+          playerName: player.name,
+          counterPrice: counter,
+          msg: `${player.name}'s club counters with £${counter.toLocaleString()}. Accept or walk away.`
+        };
+      }
+      // Bid accepted
+      const finalPrice = Math.min(bidAmount, askingPrice);
+      if (teamObj.balance < finalPrice) return { success: false, msg: 'Insufficient funds.' };
+      teamObj.balance -= finalPrice;
+      delete player.askingPrice;
+      teamObj.players.push(player);
+      state.transferPool.splice(idx, 1);
+      return { success: true, msg: `${player.name} signed for £${finalPrice.toLocaleString()} after negotiations!` };
+    }
+
+    // Standard instant buy (original behavior or cheap players)
+    if (teamObj.balance < askingPrice) return { success: false, msg: 'Insufficient funds.' };
+
+    const finalPrice = askingPrice;
+    teamObj.balance -= finalPrice;
     delete player.askingPrice;
     teamObj.players.push(player);
     state.transferPool.splice(idx, 1);
-    return { success: true, msg: `${player.name} signed for £${player.askingPrice ? player.askingPrice.toLocaleString() : ''}!` };
+    return { success: true, msg: `${player.name} signed for £${finalPrice.toLocaleString()}!` };
   }
 
   function sellPlayer(playerId, teamObj) {
@@ -566,6 +733,20 @@ const MTSM_ENGINE = (() => {
     state.week = 1;
     state.seasonOver = false;
 
+    // Reset cup for new season
+    if (state.options.cupPrizeMoney) {
+      state.cup = generateCupBrackets(state.divisions);
+    }
+
+    // Refresh youth academy
+    if (state.options.youthAcademy) {
+      for (let i = 0; i < state.humanPlayers.length; i++) {
+        if (!state.humanPlayers[i].sacked) {
+          state.youthAcademy[i] = generateYouthPlayers(3);
+        }
+      }
+    }
+
     return { promotions, relegations, champion };
   }
 
@@ -631,6 +812,211 @@ const MTSM_ENGINE = (() => {
     }));
   }
 
+  // ===== CUP SYSTEM =====
+  const CUP_PRIZE_MONEY = {
+    // [round1, round2, QF, SF, Final, Winner]
+    0: [5000, 10000, 20000, 40000, 80000, 150000],   // Div 1
+    1: [3000, 6000, 12000, 25000, 50000, 100000],    // Div 2
+    2: [2000, 4000, 8000, 15000, 30000, 60000],      // Div 3
+    3: [1000, 2000, 4000, 8000, 15000, 30000]        // Div 4
+  };
+
+  function generateCupBrackets(divisions) {
+    const cup = {};
+    for (let d = 0; d < 4; d++) {
+      const teams = [...divisions[d].teams].map(t => t.name);
+      // Shuffle for draw
+      for (let i = teams.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [teams[i], teams[j]] = [teams[j], teams[i]];
+      }
+      cup[d] = {
+        teams,
+        rounds: [{ matches: [], results: [] }],
+        currentRound: 0,
+        eliminated: [],
+        finished: false,
+        winner: null
+      };
+      // First round: 16 teams -> 8 matches
+      const matches = [];
+      for (let i = 0; i < teams.length; i += 2) {
+        matches.push({ home: teams[i], away: teams[i + 1], played: false });
+      }
+      cup[d].rounds[0].matches = matches;
+    }
+    return cup;
+  }
+
+  function processCupRound() {
+    if (!state.cup) return;
+
+    for (let d = 0; d < 4; d++) {
+      const divCup = state.cup[d];
+      if (divCup.finished) continue;
+
+      const round = divCup.rounds[divCup.currentRound];
+      if (!round) continue;
+
+      // Only play one match per match day (every 3 league weeks)
+      if (state.week % 3 !== 0) continue;
+
+      const unplayed = round.matches.filter(m => !m.played);
+      if (unplayed.length === 0) {
+        // Advance to next round
+        const winners = round.results.map(r => r.winner);
+        if (winners.length <= 1) {
+          // Cup is over
+          divCup.finished = true;
+          if (winners.length === 1) {
+            divCup.winner = winners[0];
+            state.news.push({ type: 'CUP', text: `${winners[0]} wins the Division ${d + 1} Cup!` });
+            // Award winner prize
+            const winnerTeam = state.divisions[d].teams.find(t => t.name === winners[0]);
+            if (winnerTeam) {
+              const prize = CUP_PRIZE_MONEY[d][5];
+              winnerTeam.balance += prize;
+              state.news.push({ type: 'CUP', text: `${winners[0]} receives \u00a3${prize.toLocaleString()} cup winner prize money!` });
+            }
+          }
+          continue;
+        }
+        // Build next round
+        const nextMatches = [];
+        for (let i = 0; i < winners.length; i += 2) {
+          if (i + 1 < winners.length) {
+            nextMatches.push({ home: winners[i], away: winners[i + 1], played: false });
+          } else {
+            // Bye
+            nextMatches.push({ home: winners[i], away: null, played: true });
+            // Auto-advance
+          }
+        }
+        divCup.currentRound++;
+        divCup.rounds.push({ matches: nextMatches, results: [] });
+        continue;
+      }
+
+      // Play all unplayed matches in this round
+      for (const match of unplayed) {
+        if (!match.away) {
+          // Bye
+          match.played = true;
+          round.results.push({ home: match.home, away: 'BYE', homeGoals: 0, awayGoals: 0, winner: match.home });
+          continue;
+        }
+        const homeTeam = state.divisions[d].teams.find(t => t.name === match.home);
+        const awayTeam = state.divisions[d].teams.find(t => t.name === match.away);
+        if (!homeTeam || !awayTeam) continue;
+
+        let result = simulateMatch(homeTeam, awayTeam);
+        // Cup match: if draw, away goals / extra time (just replay with slight home boost)
+        if (result.homeGoals === result.awayGoals) {
+          result.homeGoals += Math.random() < 0.55 ? 1 : 0;
+          result.awayGoals += Math.random() < 0.45 ? 1 : 0;
+          if (result.homeGoals === result.awayGoals) result.homeGoals++; // force a result
+        }
+
+        const winner = result.homeGoals > result.awayGoals ? match.home : match.away;
+        const loser = winner === match.home ? match.away : match.home;
+        match.played = true;
+        round.results.push({
+          home: match.home,
+          away: match.away,
+          homeGoals: result.homeGoals,
+          awayGoals: result.awayGoals,
+          winner,
+          isHumanMatch: (homeTeam.isHuman || awayTeam.isHuman)
+        });
+
+        divCup.eliminated.push(loser);
+
+        // Prize money for advancing
+        const roundIdx = Math.min(divCup.currentRound, 5);
+        const prize = CUP_PRIZE_MONEY[d][roundIdx];
+        const winnerTeam = state.divisions[d].teams.find(t => t.name === winner);
+        if (winnerTeam) {
+          winnerTeam.balance += prize;
+        }
+
+        if (homeTeam.isHuman || awayTeam.isHuman) {
+          const cupRoundNames = ['Round 1', 'Round 2', 'Quarter-Final', 'Semi-Final', 'FINAL'];
+          const roundName = cupRoundNames[Math.min(divCup.currentRound, 4)];
+          state.news.push({
+            type: 'CUP',
+            text: `Cup ${roundName}: ${match.home} ${result.homeGoals}-${result.awayGoals} ${match.away}. ${winner} advances! (\u00a3${prize.toLocaleString()} prize)`
+          });
+        }
+      }
+    }
+  }
+
+  // ===== YOUTH ACADEMY =====
+  function generateYouthPlayers(count) {
+    const players = [];
+    for (let i = 0; i < count; i++) {
+      const pos = MTSM_DATA.pick(['GK', 'DEF', 'DEF', 'MID', 'MID', 'FWD']);
+      const age = MTSM_DATA.randInt(16, 18);
+      const baseSkill = MTSM_DATA.randInt(15, 35);
+      const skills = {};
+      for (const sk of MTSM_DATA.SKILLS) {
+        let val = baseSkill + MTSM_DATA.randInt(-8, 8);
+        if (pos === 'GK' && (sk === 'Tackling' || sk === 'Heading')) val += 5;
+        if (pos === 'DEF' && sk === 'Tackling') val += 5;
+        if (pos === 'MID' && sk === 'Passing') val += 5;
+        if (pos === 'FWD' && sk === 'Shooting') val += 5;
+        skills[sk] = Math.max(1, Math.min(99, val));
+      }
+      const overall = Math.round(Object.values(skills).reduce((a, b) => a + b, 0) / MTSM_DATA.SKILLS.length);
+      const potential = MTSM_DATA.randInt(55, 90); // how good they can become
+      const wage = Math.round((overall * 20 + MTSM_DATA.randInt(0, 200)) / 10) * 10;
+      const value = Math.round(wage * 26);
+
+      players.push({
+        id: Math.random().toString(36).substr(2, 9),
+        name: MTSM_DATA.pick(MTSM_DATA.FIRST_NAMES) + ' ' + MTSM_DATA.pick(MTSM_DATA.LAST_NAMES),
+        position: pos,
+        age,
+        skills,
+        overall,
+        potential,
+        wage,
+        value,
+        injured: 0,
+        morale: MTSM_DATA.randInt(60, 90),
+        training: null,
+        isYouth: true
+      });
+    }
+    return players;
+  }
+
+  function signYouthPlayer(playerIdx, hpIdx) {
+    if (!state.youthAcademy || !state.youthAcademy[hpIdx]) return { success: false, msg: 'No academy available.' };
+    const academy = state.youthAcademy[hpIdx];
+    if (playerIdx < 0 || playerIdx >= academy.length) return { success: false, msg: 'Invalid player.' };
+
+    const hp = state.humanPlayers[hpIdx];
+    const team = state.divisions[hp.division].teams[hp.teamIndex];
+    if (team.players.length >= 16) return { success: false, msg: 'Squad full (max 16 players).' };
+
+    const player = academy[playerIdx];
+    const signingFee = player.value;
+    if (team.balance < signingFee) return { success: false, msg: `Insufficient funds. Need \u00a3${signingFee.toLocaleString()}.` };
+
+    team.balance -= signingFee;
+    team.players.push(player);
+    academy.splice(playerIdx, 1);
+    return { success: true, msg: `Youth prospect ${player.name} signed for \u00a3${signingFee.toLocaleString()}!` };
+  }
+
+  // ===== SET FORMATION =====
+  function setFormation(formationName, teamObj) {
+    if (!FORMATIONS[formationName]) return { success: false, msg: 'Invalid formation.' };
+    teamObj.formation = formationName;
+    return { success: true, msg: `Formation set to ${formationName}.` };
+  }
+
   // ===== SAVE / LOAD =====
   function saveGame() {
     if (!state) return null;
@@ -639,6 +1025,8 @@ const MTSM_ENGINE = (() => {
 
   function loadGame(savedState) {
     if (!savedState || !savedState.divisions) return false;
+    // Ensure options exist for backward compatibility
+    if (!savedState.options) savedState.options = { ...DEFAULT_OPTIONS };
     state = savedState;
     return true;
   }
@@ -659,7 +1047,11 @@ const MTSM_ENGINE = (() => {
     getNextFixtures,
     calculateTeamStrength,
     saveGame,
-    loadGame
+    loadGame,
+    signYouthPlayer,
+    setFormation,
+    FORMATIONS,
+    CUP_PRIZE_MONEY
   };
 
 })();

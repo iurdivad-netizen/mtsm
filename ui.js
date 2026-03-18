@@ -49,6 +49,53 @@ const MTSM_UI = (() => {
     `;
   }
 
+  // ===== GAME OPTIONS DEFINITIONS =====
+  const GAME_OPTIONS_META = [
+    {
+      key: 'boardConfidence',
+      label: 'Board Confidence',
+      icon: '📊',
+      desc: 'The board tracks your results with a visible confidence meter. Drop too low and you\'re sacked.',
+      note: 'Original: the board sacked you silently after bankruptcy. This adds visible pressure every week.'
+    },
+    {
+      key: 'formationStrategy',
+      label: 'Formation Strategy',
+      icon: '📋',
+      desc: 'Choose a tactical formation before each match (4-4-2, 3-5-2, etc.) for positional bonuses.',
+      note: 'Original: no formation selector. This makes pre-match decisions more engaging.'
+    },
+    {
+      key: 'youthAcademy',
+      label: 'Youth Academy',
+      icon: '🌱',
+      desc: 'Scout cheap young players (age 16-18) with high potential. They start weak but grow fast.',
+      note: 'Original: no youth system. This adds long-term squad building depth.'
+    },
+    {
+      key: 'negotiation',
+      label: 'Negotiation',
+      icon: '🤝',
+      desc: 'Major transfers require a bid/counter-bid round instead of instant buys.',
+      note: 'Original: instant purchases. This adds a haggling mini-game for expensive signings.'
+    },
+    {
+      key: 'cupPrizeMoney',
+      label: 'Cup Competition',
+      icon: '🏆',
+      desc: 'A knockout cup runs alongside the league with prize money at each round.',
+      note: 'Original: league only. Cup runs become financially critical, especially in lower divisions.'
+    }
+  ];
+
+  let _gameOptions = {
+    boardConfidence: false,
+    formationStrategy: false,
+    youthAcademy: false,
+    negotiation: false,
+    cupPrizeMoney: false
+  };
+
   // ===== SETUP SCREEN =====
   function renderSetup() {
     currentView = 'setup';
@@ -65,6 +112,29 @@ const MTSM_UI = (() => {
           </div>
         </div>
         <div id="player-forms"></div>
+
+        <div class="panel">
+          <div class="panel-header">🎮 GAME OPTIONS</div>
+          <div class="text-muted" style="font-size:13px;margin-bottom:12px;">Toggle new features on or off. Disabled = original 1991 experience.</div>
+          <div class="options-grid">
+            ${GAME_OPTIONS_META.map(opt => `
+              <div class="option-card" id="opt-card-${opt.key}" onclick="MTSM_UI._toggleOption('${opt.key}')">
+                <div class="option-header">
+                  <span class="option-icon">${opt.icon}</span>
+                  <span class="option-label">${opt.label}</span>
+                  <span class="option-toggle" id="opt-${opt.key}">${_gameOptions[opt.key] ? '▣ ON' : '▢ OFF'}</span>
+                </div>
+                <div class="option-desc">${opt.desc}</div>
+                <div class="option-note">⬆ vs original: ${opt.note}</div>
+              </div>
+            `).join('')}
+          </div>
+          <div style="margin-top:12px;text-align:center;">
+            <button class="btn btn-small" onclick="MTSM_UI._toggleAllOptions(true)" style="margin-right:8px;">ALL ON</button>
+            <button class="btn btn-small" onclick="MTSM_UI._toggleAllOptions(false)">ALL OFF</button>
+          </div>
+        </div>
+
         <div class="text-center mt-4">
           <button class="btn btn-accent" onclick="MTSM_UI._startGame()">START SEASON</button>
         </div>
@@ -98,6 +168,26 @@ const MTSM_UI = (() => {
           </select>
         </div>
       `;
+    }
+  }
+
+  function _toggleOption(key) {
+    _gameOptions[key] = !_gameOptions[key];
+    const el = document.getElementById(`opt-${key}`);
+    const card = document.getElementById(`opt-card-${key}`);
+    if (el) el.textContent = _gameOptions[key] ? '▣ ON' : '▢ OFF';
+    if (card) {
+      card.classList.toggle('option-on', _gameOptions[key]);
+    }
+  }
+
+  function _toggleAllOptions(onOff) {
+    for (const opt of GAME_OPTIONS_META) {
+      _gameOptions[opt.key] = onOff;
+      const el = document.getElementById(`opt-${opt.key}`);
+      const card = document.getElementById(`opt-card-${opt.key}`);
+      if (el) el.textContent = onOff ? '▣ ON' : '▢ OFF';
+      if (card) card.classList.toggle('option-on', onOff);
     }
   }
 
@@ -138,7 +228,7 @@ const MTSM_UI = (() => {
       usedTeams.add(teamIdx);
       humanPlayers.push({ name, teamIndex: teamIdx });
     }
-    MTSM_ENGINE.initGame(humanPlayers);
+    MTSM_ENGINE.initGame(humanPlayers, { ..._gameOptions });
     renderGame();
   }
 
@@ -166,6 +256,13 @@ const MTSM_UI = (() => {
             <span>Season <span class="value">${state.season}</span></span>
             <span>Week <span class="value">${state.week}</span></span>
             <span>Balance <span class="value ${team.balance < 0 ? 'text-danger' : ''}">${formatMoney(team.balance)}</span></span>
+            ${state.options.boardConfidence ? `
+              <span class="confidence-badge" title="Board Confidence">
+                <span class="confidence-label">Board</span>
+                <span class="confidence-bar"><span class="confidence-fill" style="width:${hp.boardConfidence}%;background:${hp.boardConfidence > 60 ? 'var(--color-success)' : hp.boardConfidence > 30 ? 'var(--color-accent)' : 'var(--color-danger)'};"></span></span>
+                <span class="confidence-val ${hp.boardConfidence <= 30 ? 'text-danger' : hp.boardConfidence > 60 ? 'text-success' : 'text-accent'}">${hp.boardConfidence}%</span>
+              </span>
+            ` : ''}
             <button class="btn btn-small" onclick="MTSM_UI._saveGame()" title="Save game to file">💾 SAVE</button>
             <button class="btn btn-small" onclick="MTSM_UI._triggerLoad()" title="Load game from file">📂 LOAD</button>
           </div>
@@ -192,12 +289,27 @@ const MTSM_UI = (() => {
           <button class="icon-btn ${subView === 'training' ? 'active' : ''}" onclick="MTSM_UI.renderGame('training')">
             <span class="icon">🏋️</span>Train
           </button>
+          ${state.options.formationStrategy ? `
+            <button class="icon-btn ${subView === 'tactics' ? 'active' : ''}" onclick="MTSM_UI.renderGame('tactics')">
+              <span class="icon">📋</span>Tactics
+            </button>
+          ` : ''}
           <button class="icon-btn ${subView === 'transfers' ? 'active' : ''}" onclick="MTSM_UI.renderGame('transfers')">
             <span class="icon">💰</span>Transfer
           </button>
+          ${state.options.youthAcademy ? `
+            <button class="icon-btn ${subView === 'academy' ? 'active' : ''}" onclick="MTSM_UI.renderGame('academy')">
+              <span class="icon">🌱</span>Academy
+            </button>
+          ` : ''}
           <button class="icon-btn ${subView === 'league' ? 'active' : ''}" onclick="MTSM_UI.renderGame('league')">
             <span class="icon">🏆</span>League
           </button>
+          ${state.options.cupPrizeMoney ? `
+            <button class="icon-btn ${subView === 'cup' ? 'active' : ''}" onclick="MTSM_UI.renderGame('cup')">
+              <span class="icon">🥇</span>Cup
+            </button>
+          ` : ''}
           <button class="icon-btn ${subView === 'fixtures' ? 'active' : ''}" onclick="MTSM_UI.renderGame('fixtures')">
             <span class="icon">📅</span>Fixtures
           </button>
@@ -229,8 +341,11 @@ const MTSM_UI = (() => {
     switch (view) {
       case 'squad': return renderSquad();
       case 'training': return renderTraining();
+      case 'tactics': return renderTactics();
       case 'transfers': return renderTransfers();
+      case 'academy': return renderAcademy();
       case 'league': return renderLeague();
+      case 'cup': return renderCup();
       case 'fixtures': return renderFixtures();
       case 'finances': return renderFinances();
       case 'staff': return renderStaff();
@@ -466,15 +581,79 @@ const MTSM_UI = (() => {
     `;
   }
 
-  function _buyPlayer(playerId) {
+  function _buyPlayer(playerId, bidAmount) {
     const team = MTSM_ENGINE.getCurrentHumanTeam();
-    const result = MTSM_ENGINE.buyPlayer(playerId, team);
+    const result = MTSM_ENGINE.buyPlayer(playerId, team, bidAmount);
+
+    if (result.negotiate) {
+      // Show negotiation modal
+      _showNegotiationModal(result);
+      return;
+    }
+    if (result.counterOffer) {
+      // Show counter-offer modal
+      _showCounterOfferModal(result);
+      return;
+    }
     if (result.success) {
       showNotification(result.msg);
     } else {
       showNotification(result.msg, true);
     }
     renderGame('transfers');
+  }
+
+  function _showNegotiationModal(result) {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.id = 'nego-modal';
+    modal.innerHTML = `
+      <div class="modal">
+        <h3>🤝 TRANSFER NEGOTIATION</h3>
+        <div style="margin-bottom:16px;">
+          <div class="text-accent" style="font-size:18px;">${result.playerName}</div>
+          <div class="text-muted" style="font-size:14px;">Asking price: £${result.askingPrice.toLocaleString()}</div>
+          <div class="text-muted" style="font-size:12px;">They might accept as low as ~75% of asking price.</div>
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="font-family:var(--font-display);font-size:10px;color:var(--color-accent);">YOUR BID (£)</label>
+          <input type="number" id="nego-bid" value="${Math.round(result.askingPrice * 0.85)}" min="1" style="width:100%;">
+        </div>
+        <div class="btn-group" style="justify-content:center;">
+          <button class="btn btn-accent" onclick="MTSM_UI._submitBid('${result.playerId}')">SUBMIT BID</button>
+          <button class="btn" onclick="document.getElementById('nego-modal').remove()">WALK AWAY</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  }
+
+  function _submitBid(playerId) {
+    const bidInput = document.getElementById('nego-bid');
+    const bid = parseInt(bidInput.value) || 0;
+    const modal = document.getElementById('nego-modal');
+    if (modal) modal.remove();
+    _buyPlayer(playerId, bid);
+  }
+
+  function _showCounterOfferModal(result) {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.id = 'nego-modal';
+    modal.innerHTML = `
+      <div class="modal">
+        <h3>🤝 COUNTER OFFER</h3>
+        <div style="margin-bottom:16px;">
+          <div class="text-accent" style="font-size:18px;">${result.playerName}</div>
+          <div style="font-size:16px;">${result.msg}</div>
+        </div>
+        <div class="btn-group" style="justify-content:center;">
+          <button class="btn btn-accent" onclick="document.getElementById('nego-modal').remove();MTSM_UI._buyPlayer('${result.playerId}', ${result.counterPrice})">ACCEPT £${result.counterPrice.toLocaleString()}</button>
+          <button class="btn btn-danger" onclick="document.getElementById('nego-modal').remove();MTSM_UI.showNotification('You walked away from the deal.', true);MTSM_UI.renderGame('transfers');">WALK AWAY</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
   }
 
   function _sellPlayer(playerId) {
@@ -574,6 +753,167 @@ const MTSM_UI = (() => {
         }
       </div>
     `;
+  }
+
+  // ===== TACTICS (Formation Strategy) =====
+  function renderTactics() {
+    const state = MTSM_ENGINE.getState();
+    if (!state.options.formationStrategy) return '<div class="text-muted">Formation strategy is disabled.</div>';
+
+    const team = MTSM_ENGINE.getCurrentHumanTeam();
+    const currentFormation = team.formation || '4-4-2';
+    const formations = MTSM_ENGINE.FORMATIONS;
+
+    const formationDescriptions = {
+      '4-4-2': 'Balanced classic. No positional bonuses — the safe default.',
+      '4-3-3': 'Attacking width. +3 strength bonus when you have enough forwards.',
+      '3-5-2': 'Midfield overload. +4 bonus from midfield dominance (stacks with midfield loading quirk).',
+      '5-3-2': 'Defensive wall. +3 bonus from a packed defence.',
+      '4-5-1': 'Midfield control. +3 midfield bonus and +1 defensive stability.',
+      '3-4-3': 'All-out attack. +4 bonus from forward firepower, but exposed at the back.'
+    };
+
+    return `
+      <div class="panel-header">📋 TACTICS — Formation</div>
+      <div class="text-muted mb-4" style="font-size:13px;">Choose your formation. Bonuses apply when you have enough players in the right positions.</div>
+      <div class="formation-grid">
+        ${Object.keys(formations).map(f => `
+          <div class="formation-card ${f === currentFormation ? 'formation-active' : ''}" onclick="MTSM_UI._setFormation('${f}')">
+            <div class="formation-name">${f}</div>
+            <div class="formation-layout">
+              <span class="pos-gk">GK</span>
+              <span class="pos-def">${formations[f].DEF} DEF</span>
+              <span class="pos-mid">${formations[f].MID} MID</span>
+              <span class="pos-fwd">${formations[f].FWD} FWD</span>
+            </div>
+            <div class="formation-desc">${formationDescriptions[f]}</div>
+            ${f === currentFormation ? '<div class="text-accent" style="font-size:10px;font-family:var(--font-display);margin-top:4px;">SELECTED</div>' : ''}
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  function _setFormation(f) {
+    const team = MTSM_ENGINE.getCurrentHumanTeam();
+    const result = MTSM_ENGINE.setFormation(f, team);
+    showNotification(result.msg, !result.success);
+    renderGame('tactics');
+  }
+
+  // ===== YOUTH ACADEMY =====
+  function renderAcademy() {
+    const state = MTSM_ENGINE.getState();
+    if (!state.options.youthAcademy || !state.youthAcademy) return '<div class="text-muted">Youth academy is disabled.</div>';
+
+    const hpIdx = state.currentPlayerIndex;
+    const academy = state.youthAcademy[hpIdx] || [];
+    const team = MTSM_ENGINE.getCurrentHumanTeam();
+
+    return `
+      <div class="panel-header">🌱 YOUTH ACADEMY — ${academy.length} prospect${academy.length !== 1 ? 's' : ''}</div>
+      <div class="text-muted mb-4" style="font-size:13px;">Young players with potential. Low stats now but they develop faster. New prospects arrive every 4 weeks.</div>
+      ${academy.length === 0 ? '<div class="text-muted text-center" style="padding:20px;">No prospects available. Check back in a few weeks.</div>' : `
+        <div style="overflow-x:auto;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Pos</th><th>Name</th><th>Age</th>
+                ${MTSM_DATA.SKILLS.map(s => `<th>${s.substring(0, 3)}</th>`).join('')}
+                <th>Ovr</th><th>Pot</th><th>Fee</th><th>Wage</th><th></th>
+              </tr>
+            </thead>
+            <tbody>
+              ${academy.map((p, idx) => `
+                <tr>
+                  <td class="pos-${p.position.toLowerCase()}">${p.position}</td>
+                  <td>${p.name}</td>
+                  <td class="num">${p.age}</td>
+                  ${MTSM_DATA.SKILLS.map(s => `<td class="num">${p.skills[s]}</td>`).join('')}
+                  <td class="num text-accent">${p.overall}</td>
+                  <td class="num text-success">${p.potential}</td>
+                  <td class="num">£${p.value.toLocaleString()}</td>
+                  <td class="num">£${p.wage.toLocaleString()}</td>
+                  <td><button class="btn btn-small" onclick="MTSM_UI._signYouth(${idx})" ${team.players.length >= 16 ? 'disabled style="opacity:0.3"' : ''}>Sign</button></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+        <div class="mt-4 text-muted" style="font-size:12px;">
+          ⭐ Potential shows the ceiling. Higher potential = faster growth during training.
+          Squad: ${team.players.length}/16
+        </div>
+      `}
+    `;
+  }
+
+  function _signYouth(idx) {
+    const state = MTSM_ENGINE.getState();
+    const result = MTSM_ENGINE.signYouthPlayer(idx, state.currentPlayerIndex);
+    showNotification(result.msg, !result.success);
+    renderGame('academy');
+  }
+
+  // ===== CUP =====
+  function renderCup() {
+    const state = MTSM_ENGINE.getState();
+    if (!state.options.cupPrizeMoney || !state.cup) return '<div class="text-muted">Cup competition is disabled.</div>';
+
+    const hp = state.humanPlayers[state.currentPlayerIndex];
+    const divCup = state.cup[hp.division];
+    const cupRoundNames = ['Round 1', 'Quarter-Finals', 'Semi-Finals', 'Final'];
+
+    let cupHtml = `
+      <div class="panel-header">🥇 DIVISION ${hp.division + 1} CUP</div>
+    `;
+
+    if (divCup.finished && divCup.winner) {
+      cupHtml += `<div class="text-center" style="padding:16px;"><div style="font-size:40px;">\ud83c\udfc6</div><div class="text-accent" style="font-size:18px;">${divCup.winner}</div><div class="text-muted">Cup Winners!</div></div>`;
+    }
+
+    // Show each round's results
+    for (let r = 0; r < divCup.rounds.length; r++) {
+      const round = divCup.rounds[r];
+      const roundName = r < cupRoundNames.length ? cupRoundNames[r] : `Round ${r + 1}`;
+      cupHtml += `<div style="margin-bottom:12px;"><div style="font-family:var(--font-display);font-size:10px;color:var(--color-accent);margin-bottom:6px;">${roundName}</div>`;
+      cupHtml += '<div class="match-results">';
+      for (const m of round.matches) {
+        if (m.played) {
+          const result = round.results.find(res => res.home === m.home && res.away === m.away);
+          if (result) {
+            const team = MTSM_ENGINE.getCurrentHumanTeam();
+            const isHuman = result.home === team.name || result.away === team.name;
+            cupHtml += `
+              <div class="match-result ${isHuman ? 'user-match' : ''}">
+                <div class="home ${result.winner === result.home ? 'text-accent' : ''}">${result.home}</div>
+                <div class="score">${result.homeGoals} - ${result.awayGoals}</div>
+                <div class="away ${result.winner === result.away ? 'text-accent' : ''}">${result.away}</div>
+              </div>
+            `;
+          }
+        } else {
+          cupHtml += `
+            <div class="match-result">
+              <div class="home">${m.home}</div>
+              <div class="score">vs</div>
+              <div class="away">${m.away || 'BYE'}</div>
+            </div>
+          `;
+        }
+      }
+      cupHtml += '</div></div>';
+    }
+
+    // Prize money info
+    const prizes = MTSM_ENGINE.CUP_PRIZE_MONEY[hp.division];
+    cupHtml += `
+      <div class="mt-4 text-muted" style="font-size:12px;">
+        Prize money: R1 £${prizes[0].toLocaleString()} • R2 £${prizes[1].toLocaleString()} • QF £${prizes[2].toLocaleString()} • SF £${prizes[3].toLocaleString()} • Final £${prizes[4].toLocaleString()} • Winner £${prizes[5].toLocaleString()}
+      </div>
+    `;
+
+    return cupHtml;
   }
 
   // ===== FINANCES =====
@@ -982,7 +1322,14 @@ const MTSM_UI = (() => {
     showNotification,
     _saveGame,
     _triggerLoad,
-    _handleLoadFile
+    _handleLoadFile,
+    _toggleOption,
+    _toggleAllOptions,
+    _setFormation,
+    _signYouth,
+    _submitBid,
+    _showNegotiationModal,
+    _showCounterOfferModal
   };
 
 })();
