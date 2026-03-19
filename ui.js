@@ -643,9 +643,9 @@ const MTSM_UI = (() => {
           </thead>
           <tbody>
             ${filtered.map(p => `
-              <tr>
+              <tr${p.scouted ? ' class="scouted-player"' : ''}>
                 <td class="pos-${p.position.toLowerCase()}">${p.position}</td>
-                <td>${p.name}</td>
+                <td>${p.name}${p.scouted ? ' <span class="scouted-badge" title="Found by your scout at a discount">SCOUTED</span>' : ''}</td>
                 <td class="num">${p.age}</td>
                 <td class="num">${p.overall}</td>
                 <td class="num">£${(p.askingPrice || p.value).toLocaleString()}</td>
