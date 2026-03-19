@@ -59,6 +59,14 @@ const MTSM_ENGINE = (() => {
       cup = generateCupBrackets(divisions);
     }
 
+    // Generate national cup brackets if cup option is on
+    let nationalCup = null;
+    let leagueTrophy = null;
+    if (gameOptions.cupPrizeMoney) {
+      nationalCup = generateNationalCupBracket(divisions);
+      leagueTrophy = generateNationalCupBracket(divisions);
+    }
+
     // Generate youth academy pools if option is on
     let youthAcademy = null;
     if (gameOptions.youthAcademy) {
@@ -89,6 +97,8 @@ const MTSM_ENGINE = (() => {
       seasonOver: false,
       options: gameOptions,
       cup,
+      nationalCup,
+      leagueTrophy,
       youthAcademy
     };
 
@@ -355,6 +365,16 @@ const MTSM_ENGINE = (() => {
     // Cup matches (if enabled)
     if (state.options.cupPrizeMoney && state.cup) {
       processCupRound();
+    }
+
+    // National Cup (plays every 5 weeks)
+    if (state.options.cupPrizeMoney && state.nationalCup && !state.nationalCup.finished && state.week % 5 === 0) {
+      processNationalCupRound('nationalCup', NATIONAL_CUP_PRIZE_MONEY, 'National Cup');
+    }
+
+    // League Trophy (plays every 5 weeks, offset by 2)
+    if (state.options.cupPrizeMoney && state.leagueTrophy && !state.leagueTrophy.finished && state.week % 5 === 2) {
+      processNationalCupRound('leagueTrophy', LEAGUE_TROPHY_PRIZE_MONEY, 'League Trophy');
     }
 
     // Youth academy refresh (if enabled)
@@ -774,6 +794,8 @@ const MTSM_ENGINE = (() => {
     // Reset cup for new season
     if (state.options.cupPrizeMoney) {
       state.cup = generateCupBrackets(state.divisions);
+      state.nationalCup = generateNationalCupBracket(state.divisions);
+      state.leagueTrophy = generateNationalCupBracket(state.divisions);
     }
 
     // Refresh youth academy
@@ -858,6 +880,10 @@ const MTSM_ENGINE = (() => {
     2: [2000, 4000, 8000, 15000, 30000, 60000],      // Div 3
     3: [1000, 2000, 4000, 8000, 15000, 30000]        // Div 4
   };
+
+  // National cup prize money: [R1, R2, R3, QF, SF, Final, Winner]
+  const NATIONAL_CUP_PRIZE_MONEY = [2000, 5000, 10000, 25000, 50000, 100000, 250000];
+  const LEAGUE_TROPHY_PRIZE_MONEY = [1500, 3000, 7000, 15000, 35000, 75000, 175000];
 
   function generateCupBrackets(divisions) {
     const cup = {};
@@ -985,6 +1011,136 @@ const MTSM_ENGINE = (() => {
             text: `Cup ${roundName}: ${match.home} ${result.homeGoals}-${result.awayGoals} ${match.away}. ${winner} advances! (\u00a3${prize.toLocaleString()} prize)`
           });
         }
+      }
+    }
+  }
+
+  // ===== NATIONAL CUP SYSTEM =====
+  // Helper: find a team object by name across all divisions
+  function findTeamByName(name) {
+    for (const div of state.divisions) {
+      const team = div.teams.find(t => t.name === name);
+      if (team) return team;
+    }
+    return null;
+  }
+
+  function generateNationalCupBracket(divisions) {
+    // All 64 teams from all divisions, shuffled
+    const teams = [];
+    for (const div of divisions) {
+      for (const t of div.teams) {
+        teams.push(t.name);
+      }
+    }
+    // Shuffle
+    for (let i = teams.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [teams[i], teams[j]] = [teams[j], teams[i]];
+    }
+    const bracket = {
+      teams,
+      rounds: [{ matches: [], results: [] }],
+      currentRound: 0,
+      eliminated: [],
+      finished: false,
+      winner: null
+    };
+    // First round: 64 teams -> 32 matches
+    const matches = [];
+    for (let i = 0; i < teams.length; i += 2) {
+      matches.push({ home: teams[i], away: teams[i + 1], played: false });
+    }
+    bracket.rounds[0].matches = matches;
+    return bracket;
+  }
+
+  function processNationalCupRound(cupKey, prizeMoney, cupName) {
+    const cup = state[cupKey];
+    if (!cup || cup.finished) return;
+
+    const round = cup.rounds[cup.currentRound];
+    if (!round) return;
+
+    const unplayed = round.matches.filter(m => !m.played);
+    if (unplayed.length === 0) {
+      // Advance to next round
+      const winners = round.results.map(r => r.winner);
+      if (winners.length <= 1) {
+        cup.finished = true;
+        if (winners.length === 1) {
+          cup.winner = winners[0];
+          pushNews({ type: 'CUP', text: `${winners[0]} wins the ${cupName}!` });
+          const winnerTeam = findTeamByName(winners[0]);
+          if (winnerTeam) {
+            const prize = prizeMoney[6];
+            winnerTeam.balance += prize;
+            pushNews({ type: 'CUP', text: `${winners[0]} receives \u00a3${prize.toLocaleString()} ${cupName} winner prize!` });
+          }
+        }
+        return;
+      }
+      const nextMatches = [];
+      for (let i = 0; i < winners.length; i += 2) {
+        if (i + 1 < winners.length) {
+          nextMatches.push({ home: winners[i], away: winners[i + 1], played: false });
+        } else {
+          nextMatches.push({ home: winners[i], away: null, played: true });
+        }
+      }
+      cup.currentRound++;
+      cup.rounds.push({ matches: nextMatches, results: [] });
+      return;
+    }
+
+    // Play all unplayed matches
+    for (const match of unplayed) {
+      if (!match.away) {
+        match.played = true;
+        round.results.push({ home: match.home, away: 'BYE', homeGoals: 0, awayGoals: 0, winner: match.home });
+        continue;
+      }
+      const homeTeam = findTeamByName(match.home);
+      const awayTeam = findTeamByName(match.away);
+      if (!homeTeam || !awayTeam) continue;
+
+      let result = simulateMatch(homeTeam, awayTeam);
+      // Knockout: no draws allowed
+      if (result.homeGoals === result.awayGoals) {
+        result.homeGoals += Math.random() < 0.55 ? 1 : 0;
+        result.awayGoals += Math.random() < 0.45 ? 1 : 0;
+        if (result.homeGoals === result.awayGoals) result.homeGoals++;
+      }
+
+      const winner = result.homeGoals > result.awayGoals ? match.home : match.away;
+      const loser = winner === match.home ? match.away : match.home;
+      match.played = true;
+      round.results.push({
+        home: match.home,
+        away: match.away,
+        homeGoals: result.homeGoals,
+        awayGoals: result.awayGoals,
+        winner,
+        isHumanMatch: (homeTeam.isHuman || awayTeam.isHuman)
+      });
+
+      cup.eliminated.push(loser);
+
+      // Prize money
+      const roundIdx = Math.min(cup.currentRound, 6);
+      const prize = prizeMoney[roundIdx];
+      const winnerTeam = findTeamByName(winner);
+      if (winnerTeam) {
+        winnerTeam.balance += prize;
+      }
+
+      if (homeTeam.isHuman || awayTeam.isHuman) {
+        const roundNames = ['Round 1', 'Round 2', 'Round 3', 'Quarter-Final', 'Semi-Final', 'FINAL'];
+        const roundName = roundNames[Math.min(cup.currentRound, 5)];
+        pushNews({
+          type: 'CUP',
+          text: `${cupName} ${roundName}: ${match.home} ${result.homeGoals}-${result.awayGoals} ${match.away}. ${winner} advances! (\u00a3${prize.toLocaleString()} prize)`
+        });
       }
     }
   }
@@ -1122,7 +1278,9 @@ const MTSM_ENGINE = (() => {
     autoSelectXI,
     getStartingEleven,
     FORMATIONS,
-    CUP_PRIZE_MONEY
+    CUP_PRIZE_MONEY,
+    NATIONAL_CUP_PRIZE_MONEY,
+    LEAGUE_TROPHY_PRIZE_MONEY
   };
 
 })();
