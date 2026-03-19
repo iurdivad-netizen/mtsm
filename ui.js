@@ -307,6 +307,12 @@ const MTSM_UI = (() => {
             <button class="icon-btn ${subView === 'cup' ? 'active' : ''}" onclick="MTSM_UI.renderGame('cup')">
               <span class="icon">🥇</span>Cup
             </button>
+            <button class="icon-btn ${subView === 'nationalCup' ? 'active' : ''}" onclick="MTSM_UI.renderGame('nationalCup')">
+              <span class="icon">🏅</span>Nat. Cup
+            </button>
+            <button class="icon-btn ${subView === 'leagueTrophy' ? 'active' : ''}" onclick="MTSM_UI.renderGame('leagueTrophy')">
+              <span class="icon">🏆</span>Trophy
+            </button>
           ` : ''}
           <button class="icon-btn ${subView === 'fixtures' ? 'active' : ''}" onclick="MTSM_UI.renderGame('fixtures')">
             <span class="icon">📅</span>Fixtures
@@ -347,6 +353,8 @@ const MTSM_UI = (() => {
       case 'academy': return renderAcademy();
       case 'league': return renderLeague();
       case 'cup': return renderCup();
+      case 'nationalCup': return renderNationalCup('nationalCup', 'National Cup', MTSM_ENGINE.NATIONAL_CUP_PRIZE_MONEY);
+      case 'leagueTrophy': return renderNationalCup('leagueTrophy', 'League Trophy', MTSM_ENGINE.LEAGUE_TROPHY_PRIZE_MONEY);
       case 'fixtures': return renderFixtures();
       case 'finances': return renderFinances();
       case 'staff': return renderStaff();
@@ -1096,6 +1104,89 @@ const MTSM_UI = (() => {
     `;
 
     return cupHtml;
+  }
+
+  // ===== NATIONAL CUP =====
+  function renderNationalCup(cupKey, cupName, prizeMoney) {
+    const state = MTSM_ENGINE.getState();
+    if (!state.options.cupPrizeMoney || !state[cupKey]) return `<div class="text-muted">${cupName} is disabled.</div>`;
+
+    const cup = state[cupKey];
+    const roundNames = ['Round 1', 'Round 2', 'Round 3', 'Quarter-Finals', 'Semi-Finals', 'Final'];
+    const team = MTSM_ENGINE.getCurrentHumanTeam();
+    const teamName = team ? team.name : '';
+
+    // Check if human team is still in the cup
+    const isEliminated = cup.eliminated.includes(teamName);
+    const isWinner = cup.winner === teamName;
+
+    let html = `
+      <div class="panel-header">${cupKey === 'nationalCup' ? '🏅' : '🏆'} ${cupName} — 64 Teams (All Divisions)</div>
+    `;
+
+    if (cup.finished && cup.winner) {
+      html += `<div class="text-center" style="padding:16px;"><div style="font-size:40px;">\ud83c\udfc6</div><div class="text-accent" style="font-size:18px;">${cup.winner}</div><div class="text-muted">${cupName} Winners!</div></div>`;
+    }
+
+    // Human team status
+    if (teamName) {
+      html += `<div style="margin-bottom:12px;padding:8px;border:1px solid var(--color-border);border-radius:4px;font-size:13px;">`;
+      if (isWinner) {
+        html += `<span class="text-success">Your team won the ${cupName}!</span>`;
+      } else if (isEliminated) {
+        html += `<span class="text-danger">${teamName} has been eliminated.</span>`;
+      } else if (cup.finished) {
+        html += `<span class="text-muted">${teamName} was eliminated.</span>`;
+      } else {
+        html += `<span class="text-success">${teamName} is still in the ${cupName}.</span>`;
+      }
+      html += `</div>`;
+    }
+
+    // Show each round's results
+    for (let r = 0; r < cup.rounds.length; r++) {
+      const round = cup.rounds[r];
+      const roundName = r < roundNames.length ? roundNames[r] : `Round ${r + 1}`;
+      html += `<div style="margin-bottom:12px;"><div style="font-family:var(--font-display);font-size:10px;color:var(--color-accent);margin-bottom:6px;">${roundName} (${round.matches.length} matches)</div>`;
+      html += '<div class="match-results">';
+      for (const m of round.matches) {
+        if (m.played) {
+          const result = round.results.find(res => res.home === m.home && res.away === m.away);
+          if (result) {
+            const isHuman = result.home === teamName || result.away === teamName;
+            html += `
+              <div class="match-result ${isHuman ? 'user-match' : ''}">
+                <div class="home ${result.winner === result.home ? 'text-accent' : ''}">${result.home}</div>
+                <div class="score">${result.homeGoals} - ${result.awayGoals}</div>
+                <div class="away ${result.winner === result.away ? 'text-accent' : ''}">${result.away}</div>
+              </div>
+            `;
+          }
+        } else {
+          const isHuman = m.home === teamName || m.away === teamName;
+          html += `
+            <div class="match-result ${isHuman ? 'user-match' : ''}">
+              <div class="home">${m.home}</div>
+              <div class="score">vs</div>
+              <div class="away">${m.away || 'BYE'}</div>
+            </div>
+          `;
+        }
+      }
+      html += '</div></div>';
+    }
+
+    // Prize money info
+    html += `
+      <div class="mt-4 text-muted" style="font-size:12px;">
+        Prize money: R1 \u00a3${prizeMoney[0].toLocaleString()} \u2022 R2 \u00a3${prizeMoney[1].toLocaleString()} \u2022 R3 \u00a3${prizeMoney[2].toLocaleString()} \u2022 QF \u00a3${prizeMoney[3].toLocaleString()} \u2022 SF \u00a3${prizeMoney[4].toLocaleString()} \u2022 Final \u00a3${prizeMoney[5].toLocaleString()} \u2022 Winner \u00a3${prizeMoney[6].toLocaleString()}
+      </div>
+      <div class="text-muted" style="font-size:12px;">
+        ${cupKey === 'nationalCup' ? 'Matches played every 5 weeks.' : 'Matches played every 5 weeks (offset from National Cup).'}
+      </div>
+    `;
+
+    return html;
   }
 
   // ===== FINANCES =====
