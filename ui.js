@@ -282,7 +282,7 @@ const MTSM_UI = (() => {
 
         <div id="notification" class="notification hidden"></div>
 
-        ${!subView ? renderDashboardStats() : ''}
+        ${subView === 'menu' ? renderDashboardStats() : ''}
 
         <div class="icon-menu">
           <button class="icon-btn ${subView === 'squad' ? 'active' : ''}" onclick="MTSM_UI.renderGame('squad')">
