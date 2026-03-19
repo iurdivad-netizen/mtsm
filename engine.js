@@ -543,6 +543,7 @@ const MTSM_ENGINE = (() => {
           if (team.staff.Scout.quality >= 2) {
             const newPlayer = MTSM_DATA.generatePlayer(hp.division);
             newPlayer.askingPrice = Math.round(newPlayer.value * 0.6);
+            newPlayer.scouted = true;
             state.transferPool.unshift(newPlayer);
             eventText = eventTemplate.text.replace('{player}', newPlayer.name);
           }

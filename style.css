@@ -578,6 +578,20 @@ select {
 .pos-mid { color: #00dd44; }
 .pos-fwd { color: #ff5566; }
 
+/* ===== SCOUTED PLAYER ===== */
+.scouted-player { background: rgba(0, 221, 68, 0.08); }
+.scouted-badge {
+  font-family: var(--font-display);
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: #00dd44;
+  color: #0a0a0a;
+  margin-left: 6px;
+  vertical-align: middle;
+  letter-spacing: 0.5px;
+}
+
 /* ===== TABS ===== */
 .tab-bar {
   display: flex;
