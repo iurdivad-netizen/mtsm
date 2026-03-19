@@ -282,6 +282,8 @@ const MTSM_UI = (() => {
 
         <div id="notification" class="notification hidden"></div>
 
+        ${!subView ? renderDashboardStats() : ''}
+
         <div class="icon-menu">
           <button class="icon-btn ${subView === 'squad' ? 'active' : ''}" onclick="MTSM_UI.renderGame('squad')">
             <span class="icon">👥</span>Squad
@@ -365,59 +367,64 @@ const MTSM_UI = (() => {
     }
   }
 
-  // ===== MENU (default) =====
-  function renderMenu() {
+  // ===== DASHBOARD STATS (above buttons) =====
+  function renderDashboardStats() {
     const state = MTSM_ENGINE.getState();
     const team = MTSM_ENGINE.getCurrentHumanTeam();
     const hp = state.humanPlayers[state.currentPlayerIndex];
     const table = MTSM_ENGINE.getLeagueTable(hp.division);
     const pos = table.findIndex(t => t.name === team.name) + 1;
 
-    let newsHtml = '';
-    if (state.news.length > 0) {
-      newsHtml = `
-        <div class="news-ticker mt-4">
-          <div class="panel-header">📰 NEWS</div>
-          ${state.news.map(n => `
-            <div class="news-item">
-              <span class="event-type">[${n.type}]</span> ${n.text}
-            </div>
-          `).join('')}
-        </div>
-      `;
-    }
-
     return `
-      <div class="panel-header">📋 DASHBOARD</div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;">
-        <div>
-          <div class="text-muted" style="font-size:12px;">LEAGUE POSITION</div>
-          <div class="text-accent" style="font-size:28px;font-family:var(--font-display);">${pos}${ordinal(pos)}</div>
-          <div class="text-muted">Division ${hp.division + 1}</div>
-        </div>
-        <div>
-          <div class="text-muted" style="font-size:12px;">RECORD</div>
-          <div style="font-size:22px;">
-            <span class="text-success">${team.won}W</span>
-            <span class="text-accent">${team.drawn}D</span>
-            <span class="text-danger">${team.lost}L</span>
+      <div class="panel mt-4">
+        <div class="panel-header">📋 DASHBOARD</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;">
+          <div>
+            <div class="text-muted" style="font-size:12px;">LEAGUE POSITION</div>
+            <div class="text-accent" style="font-size:28px;font-family:var(--font-display);">${pos}${ordinal(pos)}</div>
+            <div class="text-muted">Division ${hp.division + 1}</div>
           </div>
-          <div class="text-muted">${team.points} points • GD ${team.goalsFor - team.goalsAgainst > 0 ? '+' : ''}${team.goalsFor - team.goalsAgainst}</div>
-        </div>
-        <div>
-          <div class="text-muted" style="font-size:12px;">FORM</div>
-          <div style="font-size:22px;display:flex;gap:4px;">
-            ${team.form.length === 0 ? '<span class="text-muted">—</span>' :
-              team.form.map(f => `<span class="${f === 'W' ? 'text-success' : f === 'D' ? 'text-accent' : 'text-danger'}">${f}</span>`).join('')}
+          <div>
+            <div class="text-muted" style="font-size:12px;">RECORD</div>
+            <div style="font-size:22px;">
+              <span class="text-success">${team.won}W</span>
+              <span class="text-accent">${team.drawn}D</span>
+              <span class="text-danger">${team.lost}L</span>
+            </div>
+            <div class="text-muted">${team.points} points • GD ${team.goalsFor - team.goalsAgainst > 0 ? '+' : ''}${team.goalsFor - team.goalsAgainst}</div>
           </div>
-        </div>
-        <div>
-          <div class="text-muted" style="font-size:12px;">SQUAD</div>
-          <div style="font-size:22px;">${team.players.length} <span class="text-muted" style="font-size:14px;">players</span></div>
-          <div class="text-muted">${team.players.filter(p => p.injured > 0).length} injured</div>
+          <div>
+            <div class="text-muted" style="font-size:12px;">FORM</div>
+            <div style="font-size:22px;display:flex;gap:4px;">
+              ${team.form.length === 0 ? '<span class="text-muted">—</span>' :
+                team.form.map(f => `<span class="${f === 'W' ? 'text-success' : f === 'D' ? 'text-accent' : 'text-danger'}">${f}</span>`).join('')}
+            </div>
+          </div>
+          <div>
+            <div class="text-muted" style="font-size:12px;">SQUAD</div>
+            <div style="font-size:22px;">${team.players.length} <span class="text-muted" style="font-size:14px;">players</span></div>
+            <div class="text-muted">${team.players.filter(p => p.injured > 0).length} injured</div>
+          </div>
         </div>
       </div>
-      ${newsHtml}
+    `;
+  }
+
+  // ===== MENU (default - news below buttons) =====
+  function renderMenu() {
+    const state = MTSM_ENGINE.getState();
+
+    if (state.news.length === 0) return '';
+
+    return `
+      <div class="news-ticker mt-4">
+        <div class="panel-header">📰 NEWS</div>
+        ${state.news.map(n => `
+          <div class="news-item">
+            <span class="event-type">[${n.type}]</span> ${n.text}
+          </div>
+        `).join('')}
+      </div>
     `;
   }
 
