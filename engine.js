@@ -817,33 +817,24 @@ const MTSM_ENGINE = (() => {
     const fromIdx = fromDivision.teams.indexOf(team);
     if (fromIdx === -1) return;
 
-    // Find a team going the other way (already handled by paired promo/releg)
-    // Just swap positions
+    // Move team between divisions
     fromDivision.teams.splice(fromIdx, 1);
     toDivision.teams.push(team);
 
-    // Update human player tracking
-    for (const hp of state.humanPlayers) {
-      if (hp.division === fromDiv) {
-        const hpTeam = fromDivision.teams[hp.teamIndex];
-        if (!hpTeam || hpTeam.name !== state.divisions[hp.division].teams[hp.teamIndex]?.name) {
-          // Find team in new division
-          const newIdx = toDivision.teams.findIndex(t => t.name === team.name);
-          if (newIdx !== -1 && team.isHuman && team.humanPlayerIndex === hp.teamIndex) {
-            hp.division = toDiv;
-            hp.teamIndex = newIdx;
-          }
-        }
-      }
-    }
-
-    // Fix human player indices after move
-    for (const hp of state.humanPlayers) {
+    // Update all human player tracking to reflect new division positions
+    for (let i = 0; i < state.humanPlayers.length; i++) {
+      const hp = state.humanPlayers[i];
       if (hp.sacked) continue;
-      const div = state.divisions[hp.division];
-      const idx = div.teams.findIndex(t => t.isHuman && t.humanName === hp.name);
-      if (idx !== -1) {
-        hp.teamIndex = idx;
+      // Find this human player's team across all divisions
+      for (let d = 0; d < state.divisions.length; d++) {
+        const idx = state.divisions[d].teams.findIndex(
+          t => t.isHuman && t.humanPlayerIndex === i
+        );
+        if (idx !== -1) {
+          hp.division = d;
+          hp.teamIndex = idx;
+          break;
+        }
       }
     }
   }

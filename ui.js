@@ -1489,18 +1489,18 @@ const MTSM_UI = (() => {
       html += `<div class="text-accent mt-4" style="font-size:20px;">Champion: ${result.champion[0].team}</div>`;
     }
 
-    if (result.promotions.length > 0) {
-      html += `<div class="mt-4"><div class="text-success" style="font-family:var(--font-display);font-size:11px;">PROMOTIONS</div>`;
-      for (const p of result.promotions) {
-        html += `<div>${p.team.name} → Division ${p.toDiv + 1}</div>`;
-      }
-      html += '</div>';
-    }
+    // Group promotions and relegations by division pair
+    for (let d = 0; d < 4; d++) {
+      const divPromos = result.promotions.filter(p => p.fromDiv === d);
+      const divRelegs = result.relegations.filter(r => r.fromDiv === d);
+      if (divPromos.length === 0 && divRelegs.length === 0) continue;
 
-    if (result.relegations.length > 0) {
-      html += `<div class="mt-4"><div class="text-danger" style="font-family:var(--font-display);font-size:11px;">RELEGATIONS</div>`;
-      for (const r of result.relegations) {
-        html += `<div>${r.team.name} → Division ${r.toDiv + 1}</div>`;
+      html += `<div class="mt-4"><div class="text-accent" style="font-family:var(--font-display);font-size:11px;">DIVISION ${d + 1}</div>`;
+      for (const p of divPromos) {
+        html += `<div class="text-success">▲ ${p.team.name} promoted to Division ${p.toDiv + 1}</div>`;
+      }
+      for (const r of divRelegs) {
+        html += `<div class="text-danger">▼ ${r.team.name} relegated to Division ${r.toDiv + 1}</div>`;
       }
       html += '</div>';
     }
