@@ -638,6 +638,9 @@ const MTSM_UI = (() => {
           <option value="40" ${_transferFilter.minOvr === 40 ? 'selected' : ''}>40+</option>
           <option value="50" ${_transferFilter.minOvr === 50 ? 'selected' : ''}>50+</option>
           <option value="60" ${_transferFilter.minOvr === 60 ? 'selected' : ''}>60+</option>
+          <option value="70" ${_transferFilter.minOvr === 70 ? 'selected' : ''}>70+</option>
+          <option value="80" ${_transferFilter.minOvr === 80 ? 'selected' : ''}>80+</option>
+          <option value="90" ${_transferFilter.minOvr === 90 ? 'selected' : ''}>90+</option>
         </select>
       </div>
       <div style="overflow-x:auto;">
