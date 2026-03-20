@@ -1419,6 +1419,133 @@ const MTSM_UI = (() => {
     renderGame('ground');
   }
 
+  // ===== CLUB RECORDS HELPER =====
+  function renderRecordsSection(history) {
+    // Find all-time records across all seasons
+    const seasonsWithRecords = history.filter(h => h.records);
+    if (seasonsWithRecords.length === 0) return '';
+
+    // Best winning streak (all-time)
+    let bestWinStreak = { value: 0, season: 0 };
+    let worstLoseStreak = { value: 0, season: 0 };
+    let bestUnbeatenRun = { value: 0, season: 0 };
+    let worstWinlessRun = { value: 0, season: 0 };
+    let mostCleanSheets = { value: 0, season: 0 };
+    let bestBigWin = null;
+    let worstBigLoss = null;
+    let bestHighScoring = null;
+    let mostGoalsSeason = { value: 0, season: 0 };
+    let fewestGoalsConceded = { value: Infinity, season: 0 };
+    let mostPointsSeason = { value: 0, season: 0 };
+    let bestGDSeason = { value: -Infinity, season: 0 };
+
+    for (const h of history) {
+      // Season-level records
+      if (h.goalsFor > mostGoalsSeason.value) {
+        mostGoalsSeason = { value: h.goalsFor, season: h.season };
+      }
+      if (h.goalsAgainst < fewestGoalsConceded.value) {
+        fewestGoalsConceded = { value: h.goalsAgainst, season: h.season };
+      }
+      if (h.points > mostPointsSeason.value) {
+        mostPointsSeason = { value: h.points, season: h.season };
+      }
+      const gd = h.goalsFor - h.goalsAgainst;
+      if (gd > bestGDSeason.value) {
+        bestGDSeason = { value: gd, season: h.season };
+      }
+
+      if (!h.records) continue;
+      const r = h.records;
+
+      if (r.winStreak > bestWinStreak.value) {
+        bestWinStreak = { value: r.winStreak, season: h.season };
+      }
+      if (r.loseStreak > worstLoseStreak.value) {
+        worstLoseStreak = { value: r.loseStreak, season: h.season };
+      }
+      if (r.unbeatenRun > bestUnbeatenRun.value) {
+        bestUnbeatenRun = { value: r.unbeatenRun, season: h.season };
+      }
+      if (r.winlessRun > worstWinlessRun.value) {
+        worstWinlessRun = { value: r.winlessRun, season: h.season };
+      }
+      if (r.cleanSheets > mostCleanSheets.value) {
+        mostCleanSheets = { value: r.cleanSheets, season: h.season };
+      }
+
+      if (r.biggestWin && (!bestBigWin || r.biggestWin.diff > bestBigWin.diff || (r.biggestWin.diff === bestBigWin.diff && r.biggestWin.goalsFor > bestBigWin.goalsFor))) {
+        bestBigWin = { ...r.biggestWin, season: h.season };
+      }
+      if (r.biggestLoss && (!worstBigLoss || r.biggestLoss.diff < worstBigLoss.diff || (r.biggestLoss.diff === worstBigLoss.diff && r.biggestLoss.goalsAgainst > worstBigLoss.goalsAgainst))) {
+        worstBigLoss = { ...r.biggestLoss, season: h.season };
+      }
+      if (r.highestScoring && (!bestHighScoring || r.highestScoring.total > bestHighScoring.total)) {
+        bestHighScoring = { ...r.highestScoring, season: h.season };
+      }
+    }
+
+    function matchScore(rec) {
+      if (!rec) return '—';
+      const venue = rec.isHome ? '(H)' : '(A)';
+      return `${rec.goalsFor}-${rec.goalsAgainst} vs ${rec.opponent} ${venue} <span class="text-muted">S${rec.season}</span>`;
+    }
+
+    const rows = [];
+
+    // Streaks section
+    rows.push({ label: 'Best winning streak', value: `${bestWinStreak.value} games`, season: bestWinStreak.season, icon: '🔥' });
+    rows.push({ label: 'Longest unbeaten run', value: `${bestUnbeatenRun.value} games`, season: bestUnbeatenRun.season, icon: '🛡' });
+    if (worstLoseStreak.value > 0) {
+      rows.push({ label: 'Worst losing streak', value: `${worstLoseStreak.value} games`, season: worstLoseStreak.season, icon: '💀' });
+    }
+    if (worstWinlessRun.value > 0) {
+      rows.push({ label: 'Longest winless run', value: `${worstWinlessRun.value} games`, season: worstWinlessRun.season, icon: '😰' });
+    }
+
+    // Match records
+    if (bestBigWin) {
+      rows.push({ label: 'Biggest win', value: matchScore(bestBigWin), icon: '💪' });
+    }
+    if (worstBigLoss) {
+      rows.push({ label: 'Biggest loss', value: matchScore(worstBigLoss), icon: '😬' });
+    }
+    if (bestHighScoring) {
+      rows.push({ label: 'Highest scoring match', value: matchScore(bestHighScoring), icon: '⚽' });
+    }
+
+    // Season records
+    rows.push({ label: 'Most points in a season', value: `${mostPointsSeason.value} pts`, season: mostPointsSeason.season, icon: '📊' });
+    rows.push({ label: 'Most goals in a season', value: `${mostGoalsSeason.value} goals`, season: mostGoalsSeason.season, icon: '🎯' });
+    rows.push({ label: 'Fewest goals conceded', value: `${fewestGoalsConceded.value} goals`, season: fewestGoalsConceded.season, icon: '🧤' });
+    rows.push({ label: 'Best goal difference', value: `${bestGDSeason.value > 0 ? '+' : ''}${bestGDSeason.value}`, season: bestGDSeason.season, icon: '📈' });
+    rows.push({ label: 'Most clean sheets', value: `${mostCleanSheets.value}`, season: mostCleanSheets.season, icon: '🚫' });
+
+    // Win rate
+    const totalW = history.reduce((s, h) => s + h.won, 0);
+    const totalP = history.reduce((s, h) => s + h.played, 0);
+    const winPct = totalP > 0 ? ((totalW / totalP) * 100).toFixed(1) : '0.0';
+    rows.push({ label: 'Career win rate', value: `${winPct}%`, icon: '📋' });
+
+    return `
+      <div style="margin-bottom:20px;padding:12px;border:1px solid var(--color-border);border-radius:4px;">
+        <div style="font-family:var(--font-display);font-size:10px;color:var(--color-accent);margin-bottom:8px;">ALL-TIME RECORDS</div>
+        <table class="data-table" style="font-size:13px;">
+          <tbody>
+            ${rows.map(r => `
+              <tr>
+                <td style="width:24px;text-align:center;">${r.icon}</td>
+                <td>${r.label}</td>
+                <td class="text-accent" style="text-align:right;">${r.value}</td>
+                ${r.season ? `<td class="text-muted" style="text-align:right;font-size:11px;width:40px;">S${r.season}</td>` : '<td></td>'}
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
   // ===== CLUB HISTORY =====
   function renderClubHistory() {
     const state = MTSM_ENGINE.getState();
@@ -1517,6 +1644,8 @@ const MTSM_UI = (() => {
           </tbody>
         </table>
       </div>
+
+      ${renderRecordsSection(history)}
 
       <div class="mt-4 text-muted" style="font-size:12px;">
         Total record: ${history.reduce((s, h) => s + h.won, 0)}W ${history.reduce((s, h) => s + h.drawn, 0)}D ${history.reduce((s, h) => s + h.lost, 0)}L

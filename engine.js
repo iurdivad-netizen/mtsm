@@ -78,8 +78,10 @@ const MTSM_ENGINE = (() => {
 
     // Initialize club history for each human player
     const clubHistory = {};
+    const matchLog = {};
     for (let i = 0; i < humanPlayers.length; i++) {
       clubHistory[i] = [];
+      matchLog[i] = [];
     }
 
     state = {
@@ -106,7 +108,8 @@ const MTSM_ENGINE = (() => {
       nationalCup,
       leagueTrophy,
       youthAcademy,
-      clubHistory
+      clubHistory,
+      matchLog
     };
 
     return state;
@@ -324,6 +327,31 @@ const MTSM_ENGINE = (() => {
           gateIncome,
           isHumanMatch: homeTeam.isHuman || awayTeam.isHuman
         });
+
+        // Log match for human team(s) - used for streaks/records
+        if (homeTeam.isHuman || awayTeam.isHuman) {
+          for (const hp of state.humanPlayers) {
+            if (hp.sacked) continue;
+            const t = state.divisions[hp.division].teams[hp.teamIndex];
+            if (t !== homeTeam && t !== awayTeam) continue;
+            const isHome = t === homeTeam;
+            const goalsFor = isHome ? result.homeGoals : result.awayGoals;
+            const goalsAgainst = isHome ? result.awayGoals : result.homeGoals;
+            const opponent = isHome ? awayTeam.name : homeTeam.name;
+            const outcome = goalsFor > goalsAgainst ? 'W' : goalsFor < goalsAgainst ? 'L' : 'D';
+            const hpIdx = state.humanPlayers.indexOf(hp);
+            if (!state.matchLog) state.matchLog = {};
+            if (!state.matchLog[hpIdx]) state.matchLog[hpIdx] = [];
+            state.matchLog[hpIdx].push({
+              week: state.week,
+              opponent,
+              isHome,
+              goalsFor,
+              goalsAgainst,
+              outcome
+            });
+          }
+        }
       }
 
       div.currentRound++;
@@ -848,6 +876,55 @@ const MTSM_ENGINE = (() => {
       if (!state.clubHistory) state.clubHistory = {};
       if (!state.clubHistory[i]) state.clubHistory[i] = [];
 
+      // Compute streaks and records from match log
+      const log = (state.matchLog && state.matchLog[i]) || [];
+      let winStreak = 0, maxWinStreak = 0;
+      let loseStreak = 0, maxLoseStreak = 0;
+      let unbeatenRun = 0, maxUnbeatenRun = 0;
+      let winlessRun = 0, maxWinlessRun = 0;
+      let cleanSheets = 0;
+      let biggestWin = null; // { goalsFor, goalsAgainst, opponent, isHome }
+      let biggestLoss = null;
+      let highestScoring = null; // most total goals in a match
+
+      for (const m of log) {
+        // Win streak
+        if (m.outcome === 'W') { winStreak++; } else { winStreak = 0; }
+        if (winStreak > maxWinStreak) maxWinStreak = winStreak;
+
+        // Lose streak
+        if (m.outcome === 'L') { loseStreak++; } else { loseStreak = 0; }
+        if (loseStreak > maxLoseStreak) maxLoseStreak = loseStreak;
+
+        // Unbeaten run
+        if (m.outcome !== 'L') { unbeatenRun++; } else { unbeatenRun = 0; }
+        if (unbeatenRun > maxUnbeatenRun) maxUnbeatenRun = unbeatenRun;
+
+        // Winless run
+        if (m.outcome !== 'W') { winlessRun++; } else { winlessRun = 0; }
+        if (winlessRun > maxWinlessRun) maxWinlessRun = winlessRun;
+
+        // Clean sheets
+        if (m.goalsAgainst === 0) cleanSheets++;
+
+        // Biggest win (by goal difference, then by goals scored)
+        const diff = m.goalsFor - m.goalsAgainst;
+        if (diff > 0 && (!biggestWin || diff > biggestWin.diff || (diff === biggestWin.diff && m.goalsFor > biggestWin.goalsFor))) {
+          biggestWin = { goalsFor: m.goalsFor, goalsAgainst: m.goalsAgainst, opponent: m.opponent, isHome: m.isHome, diff };
+        }
+
+        // Biggest loss
+        if (diff < 0 && (!biggestLoss || diff < biggestLoss.diff || (diff === biggestLoss.diff && m.goalsAgainst > biggestLoss.goalsAgainst))) {
+          biggestLoss = { goalsFor: m.goalsFor, goalsAgainst: m.goalsAgainst, opponent: m.opponent, isHome: m.isHome, diff };
+        }
+
+        // Highest scoring match
+        const totalGoals = m.goalsFor + m.goalsAgainst;
+        if (!highestScoring || totalGoals > highestScoring.total) {
+          highestScoring = { goalsFor: m.goalsFor, goalsAgainst: m.goalsAgainst, opponent: m.opponent, isHome: m.isHome, total: totalGoals };
+        }
+      }
+
       state.clubHistory[i].push({
         season: state.season,
         division: hp.division + 1,
@@ -859,8 +936,21 @@ const MTSM_ENGINE = (() => {
         goalsFor: team.goalsFor,
         goalsAgainst: team.goalsAgainst,
         points: team.points,
-        trophies
+        trophies,
+        records: {
+          winStreak: maxWinStreak,
+          loseStreak: maxLoseStreak,
+          unbeatenRun: maxUnbeatenRun,
+          winlessRun: maxWinlessRun,
+          cleanSheets,
+          biggestWin,
+          biggestLoss,
+          highestScoring
+        }
       });
+
+      // Reset match log for next season
+      if (state.matchLog) state.matchLog[i] = [];
     }
 
     // Reset season stats
