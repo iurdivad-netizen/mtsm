@@ -239,6 +239,19 @@ const MTSM_ENGINE = (() => {
     return { homeGoals, awayGoals };
   }
 
+  function recordFinance(team, type, amount, label) {
+    if (!team.isHuman || !state.weeklyFinances) return;
+    // Find the human team index
+    for (const hp of state.humanPlayers) {
+      if (hp.sacked) continue;
+      const t = state.divisions[hp.division].teams[hp.teamIndex];
+      if (t === team && state.weeklyFinances[hp.teamIndex]) {
+        state.weeklyFinances[hp.teamIndex].push({ type, amount, label });
+        break;
+      }
+    }
+  }
+
   function pushNews(entry) {
     state.news.push(entry);
     state.newsLog.push({ ...entry, season: state.season, week: state.week });
@@ -249,6 +262,13 @@ const MTSM_ENGINE = (() => {
   function playMatchDay() {
     state.matchResults = [];
     state.news = [];
+
+    // Reset weekly finances for all human teams
+    state.weeklyFinances = {};
+    for (const hp of state.humanPlayers) {
+      if (hp.sacked) continue;
+      state.weeklyFinances[hp.teamIndex] = [];
+    }
 
     for (let d = 0; d < 4; d++) {
       const div = state.divisions[d];
@@ -292,6 +312,7 @@ const MTSM_ENGINE = (() => {
         const attendance = calculateAttendance(homeTeam, d);
         const gateIncome = attendance * (d === 0 ? 25 : d === 1 ? 18 : d === 2 ? 12 : 8);
         homeTeam.balance += gateIncome;
+        recordFinance(homeTeam, 'income', gateIncome, 'League gate income (home)');
 
         divResults.push({
           division: d,
@@ -427,6 +448,7 @@ const MTSM_ENGINE = (() => {
         const staffWages = Object.values(team.staff).reduce((s, st) => s + st.wage, 0);
         team.balance -= playerWages + staffWages;
         team.weeklyWages = playerWages + staffWages;
+        recordFinance(team, 'expense', playerWages + staffWages, 'Wages (players + staff)');
       }
     }
   }
@@ -501,12 +523,14 @@ const MTSM_ENGINE = (() => {
         case 'violence': {
           const fine = MTSM_DATA.randInt(eventTemplate.minFine, eventTemplate.maxFine);
           team.balance -= fine;
+          recordFinance(team, 'expense', fine, 'Fine (crowd trouble)');
           eventText = eventTemplate.text.replace('{team}', team.name).replace('{amount}', fine.toLocaleString());
           break;
         }
         case 'tv': {
           const bonus = MTSM_DATA.randInt(eventTemplate.minBonus, eventTemplate.maxBonus);
           team.balance += bonus;
+          recordFinance(team, 'income', bonus, 'TV bonus');
           eventText = eventTemplate.text.replace('{amount}', bonus.toLocaleString());
           break;
         }
@@ -523,6 +547,7 @@ const MTSM_ENGINE = (() => {
         case 'grant': {
           const grant = MTSM_DATA.randInt(eventTemplate.minGrant, eventTemplate.maxGrant);
           team.balance += grant;
+          recordFinance(team, 'income', grant, 'Council grant');
           eventText = eventTemplate.text.replace('{amount}', grant.toLocaleString());
           break;
         }
@@ -559,6 +584,7 @@ const MTSM_ENGINE = (() => {
         case 'sponsor': {
           const bonus = MTSM_DATA.randInt(eventTemplate.minBonus, eventTemplate.maxBonus);
           team.balance += bonus;
+          recordFinance(team, 'income', bonus, 'Sponsorship deal');
           eventText = eventTemplate.text.replace('{amount}', bonus.toLocaleString());
           break;
         }
@@ -992,6 +1018,7 @@ const MTSM_ENGINE = (() => {
             if (winnerTeam) {
               const prize = CUP_PRIZE_MONEY[d][5];
               winnerTeam.balance += prize;
+              recordFinance(winnerTeam, 'income', prize, `Div ${d + 1} Cup winner bonus`);
               pushNews({ type: 'CUP', text: `${winners[0]} receives \u00a3${prize.toLocaleString()} cup winner prize money!` });
             }
           }
@@ -1038,8 +1065,12 @@ const MTSM_ENGINE = (() => {
         const attendance = calculateAttendance(homeTeam, d);
         const ticketPrice = d === 0 ? 25 : d === 1 ? 18 : d === 2 ? 12 : 8;
         const gateIncome = attendance * ticketPrice;
-        homeTeam.balance += Math.floor(gateIncome * 0.75);
-        awayTeam.balance += Math.floor(gateIncome * 0.25);
+        const homeShare = Math.floor(gateIncome * 0.75);
+        const awayShare = Math.floor(gateIncome * 0.25);
+        homeTeam.balance += homeShare;
+        awayTeam.balance += awayShare;
+        recordFinance(homeTeam, 'income', homeShare, `Div ${d + 1} Cup gate (home 75%)`);
+        recordFinance(awayTeam, 'income', awayShare, `Div ${d + 1} Cup gate (away 25%)`);
 
         const winner = result.homeGoals > result.awayGoals ? match.home : match.away;
         const loser = winner === match.home ? match.away : match.home;
@@ -1065,6 +1096,7 @@ const MTSM_ENGINE = (() => {
         const winnerTeam = state.divisions[d].teams.find(t => t.name === winner);
         if (winnerTeam) {
           winnerTeam.balance += prize;
+          recordFinance(winnerTeam, 'income', prize, `Div ${d + 1} Cup prize money`);
         }
 
         if (homeTeam.isHuman || awayTeam.isHuman) {
@@ -1152,6 +1184,7 @@ const MTSM_ENGINE = (() => {
           if (winnerTeam) {
             const prize = prizeMoney[6];
             winnerTeam.balance += prize;
+            recordFinance(winnerTeam, 'income', prize, `${cupName} winner bonus`);
             pushNews({ type: 'CUP', text: `${winners[0]} receives \u00a3${prize.toLocaleString()} ${cupName} winner prize!` });
           }
         }
@@ -1195,8 +1228,12 @@ const MTSM_ENGINE = (() => {
       const attendance = calculateAttendance(homeTeam, homeDivIdx);
       const ticketPrice = homeDivIdx === 0 ? 25 : homeDivIdx === 1 ? 18 : homeDivIdx === 2 ? 12 : 8;
       const gateIncome = attendance * ticketPrice;
-      homeTeam.balance += Math.floor(gateIncome * 0.75);
-      awayTeam.balance += Math.floor(gateIncome * 0.25);
+      const homeShare = Math.floor(gateIncome * 0.75);
+      const awayShare = Math.floor(gateIncome * 0.25);
+      homeTeam.balance += homeShare;
+      awayTeam.balance += awayShare;
+      recordFinance(homeTeam, 'income', homeShare, `${cupName} gate (home 75%)`);
+      recordFinance(awayTeam, 'income', awayShare, `${cupName} gate (away 25%)`);
 
       const winner = result.homeGoals > result.awayGoals ? match.home : match.away;
       const loser = winner === match.home ? match.away : match.home;
@@ -1222,6 +1259,7 @@ const MTSM_ENGINE = (() => {
       const winnerTeam = findTeamByName(winner);
       if (winnerTeam) {
         winnerTeam.balance += prize;
+        recordFinance(winnerTeam, 'income', prize, `${cupName} prize money`);
       }
 
       if (homeTeam.isHuman || awayTeam.isHuman) {
@@ -1347,6 +1385,7 @@ const MTSM_ENGINE = (() => {
     if (!savedState.options) savedState.options = { ...DEFAULT_OPTIONS };
     if (!savedState.newsLog) savedState.newsLog = [];
     if (!savedState.clubHistory) savedState.clubHistory = {};
+    if (!savedState.weeklyFinances) savedState.weeklyFinances = {};
     state = savedState;
     return true;
   }
