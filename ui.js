@@ -544,18 +544,40 @@ const MTSM_UI = (() => {
 
   // ===== NEWS BOARD =====
   let _newsFilter = 'ALL';
+  let _newsWeekFilter = 'ALL';
 
   function renderNewsBoard() {
     const state = MTSM_ENGINE.getState();
     const log = state.newsLog || [];
     const types = ['ALL', ...new Set(log.map(n => n.type))];
-    const filtered = _newsFilter === 'ALL' ? log : log.filter(n => n.type === _newsFilter);
+    const weekFilters = ['ALL', 'LAST WEEK'];
+
+    let filtered = _newsFilter === 'ALL' ? log : log.filter(n => n.type === _newsFilter);
+    if (_newsWeekFilter === 'LAST WEEK') {
+      let targetSeason = state.season;
+      let targetWeek = state.week - 1;
+      if (targetWeek < 1) {
+        targetSeason -= 1;
+        // Find max week from previous season entries, fallback to current week
+        const prevSeasonWeeks = log.filter(n => n.season === targetSeason).map(n => n.week);
+        targetWeek = prevSeasonWeeks.length > 0 ? Math.max(...prevSeasonWeeks) : 1;
+      }
+      filtered = filtered.filter(n => n.season === targetSeason && n.week === targetWeek);
+    }
     const reversed = [...filtered].reverse();
 
     return `
       <div class="panel-header">📰 NEWS BOARD</div>
       <div style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;">
-        <span style="font-size:12px;font-weight:bold;margin-right:4px;">Filter:</span>
+        <span style="font-size:12px;font-weight:bold;margin-right:4px;">Time:</span>
+        ${weekFilters.map(w => `
+          <button class="btn btn-small${_newsWeekFilter === w ? ' active' : ''}"
+            onclick="MTSM_UI._filterNewsWeek('${w}')"
+            style="font-size:11px;padding:2px 8px;${_newsWeekFilter === w ? 'background:var(--color-accent);color:var(--color-bg);' : ''}">
+            ${w}
+          </button>
+        `).join('')}
+        <span style="font-size:12px;font-weight:bold;margin:0 4px 0 12px;">Type:</span>
         ${types.map(t => `
           <button class="btn btn-small${_newsFilter === t ? ' active' : ''}"
             onclick="MTSM_UI._filterNews('${t}')"
@@ -580,6 +602,11 @@ const MTSM_UI = (() => {
 
   function _filterNews(type) {
     _newsFilter = type;
+    renderGame('news');
+  }
+
+  function _filterNewsWeek(period) {
+    _newsWeekFilter = period;
     renderGame('news');
   }
 
@@ -1824,6 +1851,7 @@ const MTSM_UI = (() => {
     _setTraining,
     _setGroupTraining,
     _filterNews,
+    _filterNewsWeek,
     _buyPlayer,
     _sellPlayer,
     _upgradeStaff,
