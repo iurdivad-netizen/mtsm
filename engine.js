@@ -1268,10 +1268,11 @@ const MTSM_ENGINE = (() => {
     const cup = state[cupKey];
     if (!cup || cup.finished) return;
 
-    const round = cup.rounds[cup.currentRound];
+    // Advance round if current round is complete, then play new round's matches
+    let round = cup.rounds[cup.currentRound];
     if (!round) return;
 
-    const unplayed = round.matches.filter(m => !m.played);
+    let unplayed = round.matches.filter(m => !m.played);
     if (unplayed.length === 0) {
       // Advance to next round
       const winners = round.results.map(r => r.winner);
@@ -1300,7 +1301,10 @@ const MTSM_ENGINE = (() => {
       }
       cup.currentRound++;
       cup.rounds.push({ matches: nextMatches, results: [] });
-      return;
+      // Continue to play the new round's matches in the same week
+      round = cup.rounds[cup.currentRound];
+      unplayed = round.matches.filter(m => !m.played);
+      if (unplayed.length === 0) return;
     }
 
     // Play all unplayed matches
@@ -1375,6 +1379,27 @@ const MTSM_ENGINE = (() => {
     // Add cup results to matchResults for display
     if (cupResults.length > 0) {
       state.matchResults.push({ division: -1, results: cupResults, cupName });
+    }
+
+    // Check if the tournament is now complete after playing matches
+    const playedRound = cup.rounds[cup.currentRound];
+    const remaining = playedRound.matches.filter(m => !m.played);
+    if (remaining.length === 0) {
+      const winners = playedRound.results.map(r => r.winner);
+      if (winners.length <= 1) {
+        cup.finished = true;
+        if (winners.length === 1) {
+          cup.winner = winners[0];
+          pushNews({ type: 'CUP', text: `${winners[0]} wins the ${cupName}!` });
+          const winnerTeam = findTeamByName(winners[0]);
+          if (winnerTeam) {
+            const prize = prizeMoney[6];
+            winnerTeam.balance += prize;
+            recordFinance(winnerTeam, 'income', prize, `${cupName} winner bonus`);
+            pushNews({ type: 'CUP', text: `${winners[0]} receives \u00a3${prize.toLocaleString()} ${cupName} winner prize!` });
+          }
+        }
+      }
     }
   }
 
