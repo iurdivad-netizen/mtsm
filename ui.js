@@ -1421,9 +1421,9 @@ const MTSM_UI = (() => {
 
   // ===== CLUB RECORDS HELPER =====
   function renderRecordsSection(history) {
-    // Find all-time records across all seasons
-    const seasonsWithRecords = history.filter(h => h.records);
-    if (seasonsWithRecords.length === 0) return '';
+    if (history.length === 0) return '';
+
+    const hasMatchRecords = history.some(h => h.records);
 
     // Best winning streak (all-time)
     let bestWinStreak = { value: 0, season: 0 };
@@ -1438,9 +1438,12 @@ const MTSM_UI = (() => {
     let fewestGoalsConceded = { value: Infinity, season: 0 };
     let mostPointsSeason = { value: 0, season: 0 };
     let bestGDSeason = { value: -Infinity, season: 0 };
+    let mostWinsSeason = { value: 0, season: 0 };
+    let mostLossesSeason = { value: Infinity, season: 0 }; // "worst" = most losses
+    let fewestLossesSeason = { value: Infinity, season: 0 };
 
     for (const h of history) {
-      // Season-level records
+      // Season-level records (always available)
       if (h.goalsFor > mostGoalsSeason.value) {
         mostGoalsSeason = { value: h.goalsFor, season: h.season };
       }
@@ -1453,6 +1456,12 @@ const MTSM_UI = (() => {
       const gd = h.goalsFor - h.goalsAgainst;
       if (gd > bestGDSeason.value) {
         bestGDSeason = { value: gd, season: h.season };
+      }
+      if (h.won > mostWinsSeason.value) {
+        mostWinsSeason = { value: h.won, season: h.season };
+      }
+      if (h.lost < fewestLossesSeason.value) {
+        fewestLossesSeason = { value: h.lost, season: h.season };
       }
 
       if (!h.records) continue;
@@ -1486,40 +1495,38 @@ const MTSM_UI = (() => {
     }
 
     function matchScore(rec) {
-      if (!rec) return '—';
+      if (!rec) return '<span class="text-muted">—</span>';
       const venue = rec.isHome ? '(H)' : '(A)';
       return `${rec.goalsFor}-${rec.goalsAgainst} vs ${rec.opponent} ${venue} <span class="text-muted">S${rec.season}</span>`;
     }
 
     const rows = [];
 
-    // Streaks section
-    rows.push({ label: 'Best winning streak', value: `${bestWinStreak.value} games`, season: bestWinStreak.season, icon: '🔥' });
-    rows.push({ label: 'Longest unbeaten run', value: `${bestUnbeatenRun.value} games`, season: bestUnbeatenRun.season, icon: '🛡' });
-    if (worstLoseStreak.value > 0) {
-      rows.push({ label: 'Worst losing streak', value: `${worstLoseStreak.value} games`, season: worstLoseStreak.season, icon: '💀' });
-    }
-    if (worstWinlessRun.value > 0) {
-      rows.push({ label: 'Longest winless run', value: `${worstWinlessRun.value} games`, season: worstWinlessRun.season, icon: '😰' });
-    }
+    // Streaks section (only if match-level records exist)
+    if (hasMatchRecords) {
+      rows.push({ label: 'Best winning streak', value: `${bestWinStreak.value} games`, season: bestWinStreak.season, icon: '🔥' });
+      rows.push({ label: 'Longest unbeaten run', value: `${bestUnbeatenRun.value} games`, season: bestUnbeatenRun.season, icon: '🛡' });
+      if (worstLoseStreak.value > 0) {
+        rows.push({ label: 'Worst losing streak', value: `${worstLoseStreak.value} games`, season: worstLoseStreak.season, icon: '💀' });
+      }
+      if (worstWinlessRun.value > 0) {
+        rows.push({ label: 'Longest winless run', value: `${worstWinlessRun.value} games`, season: worstWinlessRun.season, icon: '😰' });
+      }
 
-    // Match records
-    if (bestBigWin) {
+      // Match records
       rows.push({ label: 'Biggest win', value: matchScore(bestBigWin), icon: '💪' });
-    }
-    if (worstBigLoss) {
       rows.push({ label: 'Biggest loss', value: matchScore(worstBigLoss), icon: '😬' });
-    }
-    if (bestHighScoring) {
       rows.push({ label: 'Highest scoring match', value: matchScore(bestHighScoring), icon: '⚽' });
+      rows.push({ label: 'Most clean sheets', value: `${mostCleanSheets.value}`, season: mostCleanSheets.season, icon: '🚫' });
     }
 
-    // Season records
+    // Season records (always available from base history data)
     rows.push({ label: 'Most points in a season', value: `${mostPointsSeason.value} pts`, season: mostPointsSeason.season, icon: '📊' });
+    rows.push({ label: 'Most wins in a season', value: `${mostWinsSeason.value}`, season: mostWinsSeason.season, icon: '✅' });
+    rows.push({ label: 'Fewest losses in a season', value: `${fewestLossesSeason.value}`, season: fewestLossesSeason.season, icon: '🏅' });
     rows.push({ label: 'Most goals in a season', value: `${mostGoalsSeason.value} goals`, season: mostGoalsSeason.season, icon: '🎯' });
     rows.push({ label: 'Fewest goals conceded', value: `${fewestGoalsConceded.value} goals`, season: fewestGoalsConceded.season, icon: '🧤' });
     rows.push({ label: 'Best goal difference', value: `${bestGDSeason.value > 0 ? '+' : ''}${bestGDSeason.value}`, season: bestGDSeason.season, icon: '📈' });
-    rows.push({ label: 'Most clean sheets', value: `${mostCleanSheets.value}`, season: mostCleanSheets.season, icon: '🚫' });
 
     // Win rate
     const totalW = history.reduce((s, h) => s + h.won, 0);

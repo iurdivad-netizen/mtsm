@@ -1510,6 +1510,7 @@ const MTSM_ENGINE = (() => {
     if (!savedState.options) savedState.options = { ...DEFAULT_OPTIONS };
     if (!savedState.newsLog) savedState.newsLog = [];
     if (!savedState.clubHistory) savedState.clubHistory = {};
+    if (!savedState.matchLog) savedState.matchLog = {};
     if (!savedState.weeklyFinances) savedState.weeklyFinances = {};
     state = savedState;
     return true;
