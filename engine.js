@@ -954,6 +954,7 @@ const MTSM_ENGINE = (() => {
       }
 
       // Play all unplayed matches in this round
+      const cupResults = [];
       for (const match of unplayed) {
         if (!match.away) {
           // Bye
@@ -973,17 +974,28 @@ const MTSM_ENGINE = (() => {
           if (result.homeGoals === result.awayGoals) result.homeGoals++; // force a result
         }
 
+        // Cup attendance & gate income (75% home, 25% away)
+        const attendance = calculateAttendance(homeTeam, d);
+        const ticketPrice = d === 0 ? 25 : d === 1 ? 18 : d === 2 ? 12 : 8;
+        const gateIncome = attendance * ticketPrice;
+        homeTeam.balance += Math.floor(gateIncome * 0.75);
+        awayTeam.balance += Math.floor(gateIncome * 0.25);
+
         const winner = result.homeGoals > result.awayGoals ? match.home : match.away;
         const loser = winner === match.home ? match.away : match.home;
         match.played = true;
-        round.results.push({
+        const cupResult = {
           home: match.home,
           away: match.away,
           homeGoals: result.homeGoals,
           awayGoals: result.awayGoals,
+          attendance,
+          gateIncome,
           winner,
           isHumanMatch: (homeTeam.isHuman || awayTeam.isHuman)
-        });
+        };
+        round.results.push(cupResult);
+        cupResults.push(cupResult);
 
         divCup.eliminated.push(loser);
 
@@ -1004,6 +1016,11 @@ const MTSM_ENGINE = (() => {
           });
         }
       }
+
+      // Add cup results to matchResults for display
+      if (cupResults.length > 0) {
+        state.matchResults.push({ division: d, results: cupResults, cupName: `Division ${d + 1} Cup` });
+      }
     }
   }
 
@@ -1015,6 +1032,14 @@ const MTSM_ENGINE = (() => {
       if (team) return team;
     }
     return null;
+  }
+
+  // Helper: find the division index for a team by name
+  function findTeamDivisionIndex(name) {
+    for (let i = 0; i < state.divisions.length; i++) {
+      if (state.divisions[i].teams.find(t => t.name === name)) return i;
+    }
+    return 3; // fallback to lowest division
   }
 
   function generateNationalCupBracket(divisions) {
@@ -1086,6 +1111,7 @@ const MTSM_ENGINE = (() => {
     }
 
     // Play all unplayed matches
+    const cupResults = [];
     for (const match of unplayed) {
       if (!match.away) {
         match.played = true;
@@ -1104,17 +1130,29 @@ const MTSM_ENGINE = (() => {
         if (result.homeGoals === result.awayGoals) result.homeGoals++;
       }
 
+      // Cup attendance & gate income (75% home, 25% away)
+      const homeDivIdx = findTeamDivisionIndex(match.home);
+      const attendance = calculateAttendance(homeTeam, homeDivIdx);
+      const ticketPrice = homeDivIdx === 0 ? 25 : homeDivIdx === 1 ? 18 : homeDivIdx === 2 ? 12 : 8;
+      const gateIncome = attendance * ticketPrice;
+      homeTeam.balance += Math.floor(gateIncome * 0.75);
+      awayTeam.balance += Math.floor(gateIncome * 0.25);
+
       const winner = result.homeGoals > result.awayGoals ? match.home : match.away;
       const loser = winner === match.home ? match.away : match.home;
       match.played = true;
-      round.results.push({
+      const cupResult = {
         home: match.home,
         away: match.away,
         homeGoals: result.homeGoals,
         awayGoals: result.awayGoals,
+        attendance,
+        gateIncome,
         winner,
         isHumanMatch: (homeTeam.isHuman || awayTeam.isHuman)
-      });
+      };
+      round.results.push(cupResult);
+      cupResults.push(cupResult);
 
       cup.eliminated.push(loser);
 
@@ -1134,6 +1172,11 @@ const MTSM_ENGINE = (() => {
           text: `${cupName} ${roundName}: ${match.home} ${result.homeGoals}-${result.awayGoals} ${match.away}. ${winner} advances! (\u00a3${prize.toLocaleString()} prize)`
         });
       }
+    }
+
+    // Add cup results to matchResults for display
+    if (cupResults.length > 0) {
+      state.matchResults.push({ division: -1, results: cupResults, cupName });
     }
   }
 

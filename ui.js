@@ -1379,7 +1379,7 @@ const MTSM_UI = (() => {
       ${state.matchResults.map(divRes => `
         <div style="margin-bottom:16px;">
           <div style="font-family:var(--font-display);font-size:10px;color:var(--color-accent);margin-bottom:8px;">
-            DIVISION ${divRes.division + 1}
+            ${divRes.cupName ? divRes.cupName.toUpperCase() : `DIVISION ${divRes.division + 1}`}
           </div>
           <div class="match-results">
             ${divRes.results.map(r => {
@@ -1395,7 +1395,9 @@ const MTSM_UI = (() => {
               ${r.isHumanMatch ? `<div style="font-size:12px;padding:2px 8px 8px;color:var(--color-muted);display:flex;justify-content:space-between;">
                 <span>${isHumanHome ? '🏠 HOME' : '✈️ AWAY'}</span>
                 <span>Att: ${r.attendance.toLocaleString()}</span>
-                ${isHumanHome ? '<span class="text-success">Gate: +£' + r.gateIncome.toLocaleString() + '</span>' : '<span class="text-muted">No gate income (away)</span>'}
+                ${divRes.cupName
+                  ? '<span class="text-success">Gate: +£' + Math.floor(r.gateIncome * (isHumanHome ? 0.75 : 0.25)).toLocaleString() + ' (' + (isHumanHome ? '75%' : '25%') + ')</span>'
+                  : (isHumanHome ? '<span class="text-success">Gate: +£' + r.gateIncome.toLocaleString() + '</span>' : '<span class="text-muted">No gate income (away)</span>')}
               </div>` : ''}`;
             }).join('')}
           </div>
@@ -1424,8 +1426,8 @@ const MTSM_UI = (() => {
     const state = MTSM_ENGINE.getState();
     const hp = state.humanPlayers[state.currentPlayerIndex];
 
-    // Gather all results flat
-    const allResults = results.flatMap(d => d.results);
+    // Gather all results flat, carrying cup/division label
+    const allResults = results.flatMap(d => d.results.map(r => ({...r, division: r.division !== undefined ? r.division : d.division, cupName: d.cupName || null})));
 
     app().innerHTML = `
       <div class="game-screen">
@@ -1452,13 +1454,18 @@ const MTSM_UI = (() => {
       const r = allResults[idx];
       const line = document.createElement('div');
       line.className = 'result-line';
-      const divLabel = `D${r.division + 1}`;
+      const divLabel = r.cupName ? r.cupName : `D${r.division + 1}`;
       const team = MTSM_ENGINE.getCurrentHumanTeam();
       const isHumanHome = r.isHumanMatch && r.home === team.name;
+      const humanGateIncome = r.cupName
+        ? Math.floor(r.gateIncome * (isHumanHome ? 0.75 : 0.25))
+        : r.gateIncome;
       line.innerHTML = `
         <span class="text-muted">[${divLabel}]</span>
         ${r.home} <span class="team-score">${r.homeGoals}</span> — <span class="team-score">${r.awayGoals}</span> ${r.away}
-        ${r.isHumanMatch ? ' ★ ' + (isHumanHome ? '🏠 Att: ' + r.attendance.toLocaleString() + ' Gate: +£' + r.gateIncome.toLocaleString() : '✈️ AWAY') : ''}
+        ${r.isHumanMatch ? ' ★ ' + (r.cupName
+          ? '🏆 Att: ' + r.attendance.toLocaleString() + ' Gate: +£' + humanGateIncome.toLocaleString() + ' (' + (isHumanHome ? '75%' : '25%') + ')'
+          : (isHumanHome ? '🏠 Att: ' + r.attendance.toLocaleString() + ' Gate: +£' + r.gateIncome.toLocaleString() : '✈️ AWAY')) : ''}
       `;
       if (r.isHumanMatch) {
         line.style.color = 'var(--color-primary)';
