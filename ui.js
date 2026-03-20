@@ -1490,13 +1490,18 @@ const MTSM_UI = (() => {
   }
 
   function _processEndOfSeason() {
-    const result = MTSM_ENGINE.processEndOfSeason();
     const state = MTSM_ENGINE.getState();
+    const seasonNum = state.season;
+
+    // Capture final league tables before stats are reset
+    const finalTables = [0, 1, 2, 3].map(d => MTSM_ENGINE.getLeagueTable(d));
+
+    const result = MTSM_ENGINE.processEndOfSeason();
 
     let html = `
       <div class="season-summary">
         <div class="trophy">🏆</div>
-        <h2>END OF SEASON ${state.season - 1}</h2>
+        <h2>END OF SEASON ${seasonNum}</h2>
     `;
 
     if (result.champion.length > 0) {
@@ -1517,6 +1522,50 @@ const MTSM_UI = (() => {
         html += `<div class="text-danger">▼ ${r.team.name} relegated to Division ${r.toDiv + 1}</div>`;
       }
       html += '</div>';
+    }
+
+    // Final division tables
+    for (let d = 0; d < 4; d++) {
+      const table = finalTables[d];
+      html += `
+        <div class="mt-6">
+          <div class="text-accent" style="font-family:var(--font-display);font-size:11px;">DIVISION ${d + 1} - FINAL TABLE</div>
+          <div style="overflow-x:auto;">
+            <table class="data-table" style="margin-top:4px;">
+              <thead>
+                <tr>
+                  <th>#</th><th>Team</th><th>P</th><th>W</th><th>D</th><th>L</th>
+                  <th>GF</th><th>GA</th><th>GD</th><th>Pts</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${table.map((t, i) => {
+                  const isHuman = t.isHuman;
+                  const isPromo = i < 2 && d > 0;
+                  const isReleg = i >= 14 && d < 3;
+                  const isJoker = i === 15 && d === 3;
+                  let cls = isHuman ? 'highlight' : isPromo ? 'promotion' : (isReleg || isJoker) ? 'relegation' : '';
+                  const gd = t.goalsFor - t.goalsAgainst;
+                  return `
+                    <tr class="${cls}">
+                      <td class="num">${i + 1}</td>
+                      <td>${t.name}${isHuman ? ' ★' : ''}</td>
+                      <td class="num">${t.played}</td>
+                      <td class="num">${t.won}</td>
+                      <td class="num">${t.drawn}</td>
+                      <td class="num">${t.lost}</td>
+                      <td class="num">${t.goalsFor}</td>
+                      <td class="num">${t.goalsAgainst}</td>
+                      <td class="num">${gd > 0 ? '+' : ''}${gd}</td>
+                      <td class="num text-accent">${t.points}</td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
     }
 
     // News
