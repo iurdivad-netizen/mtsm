@@ -1493,8 +1493,12 @@ const MTSM_UI = (() => {
     const state = MTSM_ENGINE.getState();
     const seasonNum = state.season;
 
-    // Capture final league tables before stats are reset
-    const finalTables = [0, 1, 2, 3].map(d => MTSM_ENGINE.getLeagueTable(d));
+    // Snapshot final league tables before stats are reset (deep copy values)
+    const finalTables = [0, 1, 2, 3].map(d => MTSM_ENGINE.getLeagueTable(d).map(t => ({
+      name: t.name, isHuman: t.isHuman, played: t.played,
+      won: t.won, drawn: t.drawn, lost: t.lost,
+      goalsFor: t.goalsFor, goalsAgainst: t.goalsAgainst, points: t.points
+    })));
 
     const result = MTSM_ENGINE.processEndOfSeason();
 
