@@ -334,6 +334,9 @@ const MTSM_UI = (() => {
           <button class="icon-btn ${subView === 'news' ? 'active' : ''}" onclick="MTSM_UI.renderGame('news')">
             <span class="icon">📰</span>News
           </button>
+          <button class="icon-btn ${subView === 'history' ? 'active' : ''}" onclick="MTSM_UI.renderGame('history')">
+            <span class="icon">📜</span>History
+          </button>
           <button class="icon-btn" onclick="MTSM_UI._playMatchDay()" style="border-color:var(--color-accent);color:var(--color-accent);">
             <span class="icon">⚽</span>Play
           </button>
@@ -363,6 +366,7 @@ const MTSM_UI = (() => {
       case 'ground': return renderGround();
       case 'results': return renderResults();
       case 'news': return renderNewsBoard();
+      case 'history': return renderClubHistory();
       default: return renderMenu();
     }
   }
@@ -1365,6 +1369,113 @@ const MTSM_UI = (() => {
     const result = MTSM_ENGINE.upgradeGround(aspect, team);
     showNotification(result.msg, !result.success);
     renderGame('ground');
+  }
+
+  // ===== CLUB HISTORY =====
+  function renderClubHistory() {
+    const state = MTSM_ENGINE.getState();
+    const hpIdx = state.currentPlayerIndex;
+    const history = (state.clubHistory && state.clubHistory[hpIdx]) || [];
+    const team = MTSM_ENGINE.getCurrentHumanTeam();
+
+    // Count total trophies
+    const allTrophies = history.flatMap(h => h.trophies);
+    const totalTrophies = allTrophies.length;
+
+    // Count trophies by type
+    const trophyCounts = {};
+    for (const t of allTrophies) {
+      trophyCounts[t] = (trophyCounts[t] || 0) + 1;
+    }
+
+    if (history.length === 0) {
+      return `
+        <div class="panel-header">📜 CLUB HISTORY — ${team.name}</div>
+        <div class="text-muted" style="padding:20px;text-align:center;">
+          No history yet. Complete a season to see your club's record here.
+        </div>
+      `;
+    }
+
+    return `
+      <div class="panel-header">📜 CLUB HISTORY — ${team.name}</div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:20px;">
+        <div>
+          <div class="text-muted" style="font-size:12px;">TOTAL TROPHIES</div>
+          <div class="text-accent" style="font-size:32px;font-family:var(--font-display);">🏆 ${totalTrophies}</div>
+        </div>
+        <div>
+          <div class="text-muted" style="font-size:12px;">SEASONS PLAYED</div>
+          <div style="font-size:28px;font-family:var(--font-display);">${history.length}</div>
+        </div>
+        <div>
+          <div class="text-muted" style="font-size:12px;">BEST FINISH</div>
+          <div style="font-size:28px;font-family:var(--font-display);">
+            ${Math.min(...history.map(h => h.position))}${ordinal(Math.min(...history.map(h => h.position)))}
+            <span class="text-muted" style="font-size:14px;">Div ${Math.min(...history.map(h => h.division))}</span>
+          </div>
+        </div>
+        <div>
+          <div class="text-muted" style="font-size:12px;">HIGHEST DIVISION</div>
+          <div style="font-size:28px;font-family:var(--font-display);">Division ${Math.min(...history.map(h => h.division))}</div>
+        </div>
+      </div>
+
+      ${totalTrophies > 0 ? `
+        <div style="margin-bottom:20px;padding:12px;border:1px solid var(--color-accent);border-radius:4px;">
+          <div style="font-family:var(--font-display);font-size:10px;color:var(--color-accent);margin-bottom:8px;">TROPHY CABINET</div>
+          <div style="display:flex;flex-wrap:wrap;gap:12px;">
+            ${Object.entries(trophyCounts).map(([name, count]) => `
+              <div style="text-align:center;padding:8px 12px;border:1px solid var(--color-border);border-radius:4px;">
+                <div style="font-size:24px;">🏆</div>
+                <div style="font-size:12px;color:var(--color-accent);">${name}</div>
+                <div style="font-size:11px;color:var(--color-text-muted);">x${count}</div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      ` : ''}
+
+      <div style="font-family:var(--font-display);font-size:10px;color:var(--color-accent);margin-bottom:8px;">SEASON BY SEASON</div>
+      <div style="overflow-x:auto;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Season</th><th>Div</th><th>Pos</th><th>P</th><th>W</th><th>D</th><th>L</th>
+              <th>GF</th><th>GA</th><th>GD</th><th>Pts</th><th>Trophies</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${[...history].reverse().map(h => {
+              const gd = h.goalsFor - h.goalsAgainst;
+              return `
+                <tr>
+                  <td class="num text-accent">${h.season}</td>
+                  <td class="num">${h.division}</td>
+                  <td class="num">${h.position}${ordinal(h.position)}</td>
+                  <td class="num">${h.played}</td>
+                  <td class="num">${h.won}</td>
+                  <td class="num">${h.drawn}</td>
+                  <td class="num">${h.lost}</td>
+                  <td class="num">${h.goalsFor}</td>
+                  <td class="num">${h.goalsAgainst}</td>
+                  <td class="num">${gd > 0 ? '+' : ''}${gd}</td>
+                  <td class="num">${h.points}</td>
+                  <td>${h.trophies.length > 0 ? h.trophies.map(t => `<span class="text-accent" style="font-size:12px;">🏆 ${t}</span>`).join('<br>') : '<span class="text-muted">—</span>'}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="mt-4 text-muted" style="font-size:12px;">
+        Total record: ${history.reduce((s, h) => s + h.won, 0)}W ${history.reduce((s, h) => s + h.drawn, 0)}D ${history.reduce((s, h) => s + h.lost, 0)}L
+        • ${history.reduce((s, h) => s + h.goalsFor, 0)} goals scored
+        • ${history.reduce((s, h) => s + h.goalsAgainst, 0)} goals conceded
+      </div>
+    `;
   }
 
   // ===== RESULTS =====

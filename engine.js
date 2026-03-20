@@ -76,6 +76,12 @@ const MTSM_ENGINE = (() => {
       }
     }
 
+    // Initialize club history for each human player
+    const clubHistory = {};
+    for (let i = 0; i < humanPlayers.length; i++) {
+      clubHistory[i] = [];
+    }
+
     state = {
       divisions,
       transferPool,
@@ -99,7 +105,8 @@ const MTSM_ENGINE = (() => {
       cup,
       nationalCup,
       leagueTrophy,
-      youthAcademy
+      youthAcademy,
+      clubHistory
     };
 
     return state;
@@ -768,6 +775,59 @@ const MTSM_ENGINE = (() => {
       }
     }
 
+    // Record club history for each human player before resetting stats
+    for (let i = 0; i < state.humanPlayers.length; i++) {
+      const hp = state.humanPlayers[i];
+      if (hp.sacked) continue;
+      const team = state.divisions[hp.division].teams[hp.teamIndex];
+      const table = getLeagueTable(hp.division);
+      const pos = table.findIndex(t => t.name === team.name) + 1;
+
+      // Collect trophies won this season
+      const trophies = [];
+      // League champion (Division 1, position 1)
+      if (hp.division === 0 && pos === 1) {
+        trophies.push('League Champion');
+      }
+      // Division champion (top of any division)
+      if (pos === 1 && hp.division > 0) {
+        trophies.push(`Division ${hp.division + 1} Champion`);
+      }
+      // Cup trophies
+      if (state.options.cupPrizeMoney) {
+        if (state.cup && state.cup[hp.division] && state.cup[hp.division].winner === team.name) {
+          trophies.push(`Division ${hp.division + 1} Cup`);
+        }
+        if (state.nationalCup && state.nationalCup.winner === team.name) {
+          trophies.push('National Cup');
+        }
+        if (state.leagueTrophy && state.leagueTrophy.winner === team.name) {
+          trophies.push('League Trophy');
+        }
+      }
+      // League Joker trophy
+      if (hp.division === 3 && pos === 16) {
+        trophies.push('League Joker');
+      }
+
+      if (!state.clubHistory) state.clubHistory = {};
+      if (!state.clubHistory[i]) state.clubHistory[i] = [];
+
+      state.clubHistory[i].push({
+        season: state.season,
+        division: hp.division + 1,
+        position: pos,
+        played: team.played,
+        won: team.won,
+        drawn: team.drawn,
+        lost: team.lost,
+        goalsFor: team.goalsFor,
+        goalsAgainst: team.goalsAgainst,
+        points: team.points,
+        trophies
+      });
+    }
+
     // Reset season stats
     for (const div of state.divisions) {
       div.currentRound = 0;
@@ -1286,6 +1346,7 @@ const MTSM_ENGINE = (() => {
     // Ensure options exist for backward compatibility
     if (!savedState.options) savedState.options = { ...DEFAULT_OPTIONS };
     if (!savedState.newsLog) savedState.newsLog = [];
+    if (!savedState.clubHistory) savedState.clubHistory = {};
     state = savedState;
     return true;
   }
