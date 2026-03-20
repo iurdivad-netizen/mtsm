@@ -1204,20 +1204,16 @@ const MTSM_UI = (() => {
   function renderFinances() {
     const state = MTSM_ENGINE.getState();
     const team = MTSM_ENGINE.getCurrentHumanTeam();
+    const hp = state.humanPlayers[state.currentPlayerIndex];
     const playerWages = team.players.reduce((s, p) => s + p.wage, 0);
     const staffWages = Object.values(team.staff).reduce((s, st) => s + st.wage, 0);
 
-    // Find last home gate income from match results
-    let lastGateIncome = null;
-    let lastAttendance = null;
-    for (const divRes of state.matchResults) {
-      for (const r of divRes.results) {
-        if (r.isHumanMatch && r.home === team.name) {
-          lastGateIncome = r.gateIncome;
-          lastAttendance = r.attendance;
-        }
-      }
-    }
+    // Get weekly finances for this team
+    const weeklyEntries = (state.weeklyFinances && state.weeklyFinances[hp.teamIndex]) || [];
+    const incomeEntries = weeklyEntries.filter(e => e.type === 'income');
+    const expenseEntries = weeklyEntries.filter(e => e.type === 'expense');
+    const totalIncome = incomeEntries.reduce((s, e) => s + e.amount, 0);
+    const totalExpenses = expenseEntries.reduce((s, e) => s + e.amount, 0);
 
     return `
       <div class="panel-header">🏦 FINANCES</div>
@@ -1226,42 +1222,64 @@ const MTSM_UI = (() => {
           <span>Bank Balance</span>
           <span class="${team.balance < 0 ? 'text-danger' : 'text-accent'}" style="font-size:22px;">${formatMoney(team.balance)}</span>
         </div>
-        <div class="ground-stat">
-          <span>Weekly Player Wages</span>
-          <span class="text-danger">-£${playerWages.toLocaleString()}</span>
-        </div>
-        <div class="ground-stat">
-          <span>Weekly Staff Wages</span>
-          <span class="text-danger">-£${staffWages.toLocaleString()}</span>
-        </div>
-        <div class="ground-stat">
-          <span>Total Weekly Outgoing</span>
-          <span class="text-danger">-£${(playerWages + staffWages).toLocaleString()}</span>
-        </div>
-        ${lastGateIncome !== null ? `
-        <div class="ground-stat mt-4" style="border-top:1px solid var(--color-border);padding-top:12px;">
-          <span>Last Home Gate Income</span>
-          <span class="text-success">+£${lastGateIncome.toLocaleString()}</span>
-        </div>
-        <div class="ground-stat">
-          <span>Last Home Attendance</span>
-          <span class="text-accent">${lastAttendance.toLocaleString()}</span>
-        </div>
-        ` : `
-        <div class="ground-stat mt-4" style="border-top:1px solid var(--color-border);padding-top:12px;">
-          <span>Home Gate Income</span>
-          <span class="text-muted">No home game yet</span>
-        </div>
-        `}
         <div class="ground-stat mt-4">
           <span>Weeks Until Bankruptcy</span>
           <span class="${team.balance / (playerWages + staffWages) < 5 ? 'text-danger' : 'text-accent'}">
             ${team.balance > 0 ? Math.floor(team.balance / (playerWages + staffWages)) : '⚠ IN DEBT'}
           </span>
         </div>
+        ${weeklyEntries.length > 0 ? `
+        <div style="border-top:1px solid var(--color-border);margin-top:12px;padding-top:12px;">
+          <div style="font-family:var(--font-display);font-size:10px;color:var(--color-accent);margin-bottom:8px;">
+            THIS WEEK'S BANK STATEMENT (Week ${state.week - 1})
+          </div>
+          ${incomeEntries.length > 0 ? incomeEntries.map(e => `
+          <div class="ground-stat">
+            <span>${e.label}</span>
+            <span class="text-success">+\u00a3${e.amount.toLocaleString()}</span>
+          </div>
+          `).join('') : ''}
+          ${expenseEntries.length > 0 ? expenseEntries.map(e => `
+          <div class="ground-stat">
+            <span>${e.label}</span>
+            <span class="text-danger">-\u00a3${e.amount.toLocaleString()}</span>
+          </div>
+          `).join('') : ''}
+          <div class="ground-stat" style="border-top:1px solid var(--color-border);padding-top:8px;margin-top:4px;">
+            <span style="font-weight:bold;">Net This Week</span>
+            <span class="${totalIncome - totalExpenses >= 0 ? 'text-success' : 'text-danger'}" style="font-weight:bold;">
+              ${totalIncome - totalExpenses >= 0 ? '+' : '-'}\u00a3${Math.abs(totalIncome - totalExpenses).toLocaleString()}
+            </span>
+          </div>
+        </div>
+        ` : `
+        <div style="border-top:1px solid var(--color-border);margin-top:12px;padding-top:12px;">
+          <div style="font-family:var(--font-display);font-size:10px;color:var(--color-accent);margin-bottom:8px;">
+            THIS WEEK'S BANK STATEMENT
+          </div>
+          <div class="text-muted">No transactions yet — play a match day!</div>
+        </div>
+        `}
+        <div style="border-top:1px solid var(--color-border);margin-top:12px;padding-top:12px;">
+          <div style="font-family:var(--font-display);font-size:10px;color:var(--color-accent);margin-bottom:8px;">
+            WEEKLY OUTGOINGS
+          </div>
+          <div class="ground-stat">
+            <span>Player Wages</span>
+            <span class="text-danger">-\u00a3${playerWages.toLocaleString()}</span>
+          </div>
+          <div class="ground-stat">
+            <span>Staff Wages</span>
+            <span class="text-danger">-\u00a3${staffWages.toLocaleString()}</span>
+          </div>
+          <div class="ground-stat">
+            <span>Total Weekly Outgoing</span>
+            <span class="text-danger">-\u00a3${(playerWages + staffWages).toLocaleString()}</span>
+          </div>
+        </div>
       </div>
       <div class="mt-4 text-muted" style="font-size:13px;">
-        ⚠ If your balance drops below -£50,000, you will be sacked!<br>
+        ⚠ If your balance drops below -\u00a350,000, you will be sacked!<br>
         💡 Home matches generate gate income — upgrade ground capacity to earn more!
       </div>
     `;
