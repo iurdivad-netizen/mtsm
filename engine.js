@@ -414,6 +414,15 @@ const MTSM_ENGINE = (() => {
       }
     }
 
+    // Mid-season transfer market refresh
+    const midPoint = Math.floor(state.divisions[0].fixtures.length / 2);
+    if (state.week === midPoint && !state.midSeasonRefreshed) {
+      const newPlayers = MTSM_DATA.generateTransferPool(30);
+      state.transferPool = [...state.transferPool.slice(-150), ...newPlayers];
+      state.midSeasonRefreshed = true;
+      pushNews({ type: 'TRANSFER', text: 'The mid-season transfer window has opened with fresh players available!' });
+    }
+
     // Check if any human is bankrupt
     for (const hp of state.humanPlayers) {
       if (hp.sacked) continue;
@@ -877,6 +886,7 @@ const MTSM_ENGINE = (() => {
     state.season++;
     state.week = 1;
     state.seasonOver = false;
+    state.midSeasonRefreshed = false;
 
     // Reset cup for new season
     if (state.options.cupPrizeMoney) {
