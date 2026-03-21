@@ -23,20 +23,20 @@ const MTSM_UI = (() => {
     currentView = 'title';
     app().innerHTML = `
       <div class="title-screen">
-        <div class="field-art">
-    ╔══════════════════════════════╗
-    ║  ┌─────┐     ┌─────┐       ║
-    ║  │     │     │     │       ║
-    ║  └──┬──┘     └──┬──┘       ║
-    ║─────┴───────────┴──────────║
-    ║         ┌───┐              ║
-    ║         │ ○ │              ║
-    ║         └───┘              ║
-    ║─────────────────────────────║
-    ╚══════════════════════════════╝
-        </div>
-        <div class="title-logo">
-          MULTI-PLAYER<br>SOCCER<br>MANAGER
+        <div class="logo-container">
+          <div class="logo-shield">
+            <div class="shield-outer">
+              <div class="shield-inner">
+                <div class="shield-ball">⚽</div>
+              </div>
+            </div>
+          </div>
+          <div class="logo-text-block">
+            <div class="logo-main-title">MULTI</div>
+            <div class="logo-divider"></div>
+            <div class="logo-sub-title">PSM</div>
+          </div>
+          <div class="logo-tagline">PLAYER • SOCCER • MANAGER</div>
           <span class="subtitle">— Season ${new Date().getFullYear()} Edition —</span>
         </div>
         <div style="display:flex;flex-direction:column;gap:12px;align-items:center;">

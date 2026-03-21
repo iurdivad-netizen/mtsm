@@ -1,4 +1,4 @@
-/* ========= MTSM — Multi-Player Soccer Manager ========= */
+/* ========= MULTI PSM — Multi-Player Soccer Manager ========= */
 /* Art direction: ZX Spectrum retro — dark CRT feel, phosphor green accents, monospace pixel fonts */
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -90,6 +90,103 @@ body::after {
   gap: var(--space-8);
 }
 
+/* --- Logo container --- */
+.logo-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.logo-shield {
+  margin-bottom: 8px;
+  animation: shield-pulse 3s ease-in-out infinite;
+}
+
+@keyframes shield-pulse {
+  0%, 100% { filter: drop-shadow(0 0 8px rgba(0, 221, 68, 0.4)); }
+  50% { filter: drop-shadow(0 0 20px rgba(0, 221, 68, 0.8)); }
+}
+
+.shield-outer {
+  width: 100px;
+  height: 120px;
+  background: linear-gradient(180deg, #00dd44 0%, #009930 100%);
+  clip-path: polygon(50% 0%, 100% 15%, 100% 70%, 50% 100%, 0% 70%, 0% 15%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.shield-inner {
+  width: 88px;
+  height: 108px;
+  background: linear-gradient(180deg, #0a0a14 0%, #0f0f1e 100%);
+  clip-path: polygon(50% 0%, 100% 15%, 100% 70%, 50% 100%, 0% 70%, 0% 15%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.shield-ball {
+  font-size: 36px;
+  filter: grayscale(0.3);
+  margin-top: -4px;
+}
+
+.logo-text-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+
+.logo-main-title {
+  font-family: var(--font-display);
+  font-size: 52px;
+  color: var(--color-primary);
+  text-shadow: 0 0 20px rgba(0, 221, 68, 0.6), 0 0 40px rgba(0, 221, 68, 0.3);
+  letter-spacing: 12px;
+  line-height: 1;
+}
+
+.logo-divider {
+  width: 260px;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--color-accent), transparent);
+  margin: 8px 0;
+  box-shadow: 0 0 10px rgba(255, 204, 0, 0.4);
+}
+
+.logo-sub-title {
+  font-family: var(--font-display);
+  font-size: 72px;
+  color: var(--color-accent);
+  text-shadow: 0 0 20px rgba(255, 204, 0, 0.5), 0 0 40px rgba(255, 204, 0, 0.2);
+  letter-spacing: 20px;
+  line-height: 1;
+}
+
+.logo-tagline {
+  font-family: var(--font-display);
+  font-size: 10px;
+  color: var(--color-text-muted);
+  letter-spacing: 6px;
+  margin-top: 4px;
+  text-shadow: 0 0 6px rgba(106, 106, 128, 0.3);
+}
+
+.logo-container .subtitle {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  color: var(--color-accent);
+  text-shadow: 0 0 8px rgba(255, 204, 0, 0.4);
+  margin-top: var(--space-4);
+  display: block;
+}
+
+/* legacy support */
 .title-logo {
   font-family: var(--font-display);
   font-size: var(--text-2xl);
