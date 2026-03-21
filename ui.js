@@ -665,7 +665,7 @@ const MTSM_UI = (() => {
   }
 
   // ===== TRANSFERS =====
-  let _transferFilter = { position: '', minOvr: 0, maxPrice: Infinity };
+  let _transferFilter = { position: '', minOvr: 0, maxOvr: 99, maxPrice: Infinity };
 
   function renderTransfers() {
     const state = MTSM_ENGINE.getState();
@@ -678,6 +678,9 @@ const MTSM_UI = (() => {
     }
     if (_transferFilter.minOvr > 0) {
       filtered = filtered.filter(p => p.overall >= _transferFilter.minOvr);
+    }
+    if (_transferFilter.maxOvr < 99) {
+      filtered = filtered.filter(p => p.overall <= _transferFilter.maxOvr);
     }
     filtered = filtered.slice(0, 30); // Show max 30
 
@@ -722,6 +725,16 @@ const MTSM_UI = (() => {
           <option value="70" ${_transferFilter.minOvr === 70 ? 'selected' : ''}>70+</option>
           <option value="80" ${_transferFilter.minOvr === 80 ? 'selected' : ''}>80+</option>
           <option value="90" ${_transferFilter.minOvr === 90 ? 'selected' : ''}>90+</option>
+        </select>
+        <select onchange="MTSM_UI._transferFilter.maxOvr=parseInt(this.value)||99;MTSM_UI.renderGame('transfers');">
+          <option value="99">Max Overall: Any</option>
+          <option value="90" ${_transferFilter.maxOvr === 90 ? 'selected' : ''}>90-</option>
+          <option value="80" ${_transferFilter.maxOvr === 80 ? 'selected' : ''}>80-</option>
+          <option value="70" ${_transferFilter.maxOvr === 70 ? 'selected' : ''}>70-</option>
+          <option value="60" ${_transferFilter.maxOvr === 60 ? 'selected' : ''}>60-</option>
+          <option value="50" ${_transferFilter.maxOvr === 50 ? 'selected' : ''}>50-</option>
+          <option value="40" ${_transferFilter.maxOvr === 40 ? 'selected' : ''}>40-</option>
+          <option value="30" ${_transferFilter.maxOvr === 30 ? 'selected' : ''}>30-</option>
         </select>
       </div>
       <div style="overflow-x:auto;">
