@@ -1422,9 +1422,9 @@ const MTSM_ENGINE = (() => {
       const overall = Math.round(Object.values(skills).reduce((a, b) => a + b, 0) / MTSM_DATA.SKILLS.length);
       const potential = MTSM_DATA.randInt(55, 90); // how good they can become
       const wage = Math.round((overall * 20 + MTSM_DATA.randInt(0, 200)) / 10) * 10;
-      // Age multiplier: younger youth players worth more
+      // Youth players cost 30% of senior value (unproven but have potential)
       const ageMult = age <= 22 ? 1.3 - (age - 17) * 0.04 : 1.0;
-      const value = Math.round(overall * 10000 * ageMult);
+      const value = Math.round(overall * 10000 * ageMult * 0.3);
 
       players.push({
         id: Math.random().toString(36).substr(2, 9),
