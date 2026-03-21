@@ -63,7 +63,8 @@ const MTSM_DATA = (() => {
     levels: ['Basic','Improved','Advanced','Elite','World Class'],
     costs: [0, 40000, 120000, 300000, 600000],
     baseSkillBonus: [0, 4, 8, 13, 18],       // added to youth player base skill range
-    prospectCount: [3, 3, 4, 4, 5]            // how many prospects arrive each cycle
+    prospectCount: [3, 3, 4, 4, 5],           // how many new prospects arrive each cycle
+    maxCapacity: [5, 6, 8, 10, 12]            // max prospects in academy pool at once
   };
 
   const YOUTH_COACH_QUALITY = {

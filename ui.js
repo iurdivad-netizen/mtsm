@@ -1045,14 +1045,15 @@ const MTSM_UI = (() => {
     const acQuality = ad.quality;
     const acLevelName = MTSM_DATA.ACADEMY_QUALITY.levels[acQuality];
     const acNextCost = acQuality < 4 ? MTSM_DATA.ACADEMY_QUALITY.costs[acQuality + 1] : null;
+    const acMaxCap = MTSM_DATA.ACADEMY_QUALITY.maxCapacity[acQuality];
 
     const ycQuality = ad.youthCoach;
     const ycLevelName = MTSM_DATA.YOUTH_COACH_QUALITY.levels[ycQuality];
     const ycWage = MTSM_DATA.YOUTH_COACH_QUALITY.costs[ycQuality];
 
     return `
-      <div class="panel-header">🌱 YOUTH ACADEMY — ${academy.length} prospect${academy.length !== 1 ? 's' : ''}</div>
-      <div class="text-muted mb-4" style="font-size:13px;">Young players with potential. Low stats now but they develop faster. New prospects arrive every 4 weeks.</div>
+      <div class="panel-header">🌱 YOUTH ACADEMY — ${academy.length}/${acMaxCap} prospect${academy.length !== 1 ? 's' : ''}</div>
+      <div class="text-muted mb-4" style="font-size:13px;">Young players with potential. Low stats now but they develop faster. New prospects arrive every 4 weeks (up to capacity). Sign or release to make room.</div>
 
       <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;">
         <div class="staff-card" style="flex:1;min-width:200px;">
@@ -1119,7 +1120,10 @@ const MTSM_UI = (() => {
                       </select>
                     </td>
                   ` : ''}
-                  <td><button class="btn btn-small" onclick="MTSM_UI._signYouth(${idx})" ${team.players.length >= 16 ? 'disabled style="opacity:0.3"' : ''}>Sign</button></td>
+                  <td>
+                    <button class="btn btn-small" onclick="MTSM_UI._signYouth(${idx})" ${team.players.length >= 16 ? 'disabled style="opacity:0.3"' : ''}>Sign</button>
+                    <button class="btn btn-small btn-danger" onclick="MTSM_UI._releaseYouth(${idx})" style="margin-left:4px;">✕</button>
+                  </td>
                 </tr>
               `).join('')}
             </tbody>
@@ -1137,6 +1141,13 @@ const MTSM_UI = (() => {
   function _signYouth(idx) {
     const state = MTSM_ENGINE.getState();
     const result = MTSM_ENGINE.signYouthPlayer(idx, state.currentPlayerIndex);
+    showNotification(result.msg, !result.success);
+    renderGame('academy');
+  }
+
+  function _releaseYouth(idx) {
+    const state = MTSM_ENGINE.getState();
+    const result = MTSM_ENGINE.releaseYouthPlayer(idx, state.currentPlayerIndex);
     showNotification(result.msg, !result.success);
     renderGame('academy');
   }
@@ -2090,6 +2101,7 @@ const MTSM_UI = (() => {
     _toggleAllOptions,
     _setFormation,
     _signYouth,
+    _releaseYouth,
     _upgradeAcademy,
     _upgradeYouthCoach,
     _downgradeYouthCoach,

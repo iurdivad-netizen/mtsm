@@ -439,15 +439,21 @@ const MTSM_ENGINE = (() => {
       processNationalCupRound('leagueTrophy', LEAGUE_TROPHY_PRIZE_MONEY, 'League Trophy');
     }
 
-    // Youth academy refresh (if enabled)
+    // Youth academy refresh (if enabled) — adds new prospects to pool up to capacity
     if (state.options.youthAcademy && state.youthAcademy && state.week % 4 === 0) {
       for (let i = 0; i < state.humanPlayers.length; i++) {
         if (state.humanPlayers[i].sacked) continue;
         const ad = (state.youthAcademyData && state.youthAcademyData[i]) || { quality: 0, youthCoach: 0 };
-        const prospectCount = MTSM_DATA.ACADEMY_QUALITY.prospectCount[ad.quality];
-        const skillBonus = MTSM_DATA.ACADEMY_QUALITY.baseSkillBonus[ad.quality];
-        state.youthAcademy[i] = generateYouthPlayers(prospectCount, skillBonus);
-        pushNews({ type: 'ACADEMY', text: 'New youth prospects have arrived at the academy!' });
+        const maxCap = MTSM_DATA.ACADEMY_QUALITY.maxCapacity[ad.quality];
+        const currentPool = state.youthAcademy[i] || [];
+        const slotsAvailable = Math.max(0, maxCap - currentPool.length);
+        if (slotsAvailable > 0) {
+          const newCount = Math.min(MTSM_DATA.ACADEMY_QUALITY.prospectCount[ad.quality], slotsAvailable);
+          const skillBonus = MTSM_DATA.ACADEMY_QUALITY.baseSkillBonus[ad.quality];
+          const newProspects = generateYouthPlayers(newCount, skillBonus);
+          state.youthAcademy[i] = currentPool.concat(newProspects);
+          pushNews({ type: 'ACADEMY', text: `${newCount} new youth prospect${newCount !== 1 ? 's have' : ' has'} arrived at the academy!` });
+        }
       }
     }
 
@@ -1045,14 +1051,19 @@ const MTSM_ENGINE = (() => {
       state.leagueTrophy = generateNationalCupBracket(state.divisions);
     }
 
-    // Refresh youth academy
+    // Refresh youth academy — fill up to capacity, keeping existing trained prospects
     if (state.options.youthAcademy) {
       for (let i = 0; i < state.humanPlayers.length; i++) {
         if (!state.humanPlayers[i].sacked) {
           const ad = (state.youthAcademyData && state.youthAcademyData[i]) || { quality: 0 };
-          const prospectCount = MTSM_DATA.ACADEMY_QUALITY.prospectCount[ad.quality];
+          const maxCap = MTSM_DATA.ACADEMY_QUALITY.maxCapacity[ad.quality];
+          const currentPool = state.youthAcademy[i] || [];
+          const slotsAvailable = Math.max(0, maxCap - currentPool.length);
+          const newCount = Math.min(MTSM_DATA.ACADEMY_QUALITY.prospectCount[ad.quality], slotsAvailable);
           const skillBonus = MTSM_DATA.ACADEMY_QUALITY.baseSkillBonus[ad.quality];
-          state.youthAcademy[i] = generateYouthPlayers(prospectCount, skillBonus);
+          if (newCount > 0) {
+            state.youthAcademy[i] = currentPool.concat(generateYouthPlayers(newCount, skillBonus));
+          }
         }
       }
     }
@@ -1528,6 +1539,15 @@ const MTSM_ENGINE = (() => {
     return { success: true, msg: `Youth prospect ${player.name} signed for \u00a3${signingFee.toLocaleString()}!` };
   }
 
+  function releaseYouthPlayer(playerIdx, hpIdx) {
+    if (!state.youthAcademy || !state.youthAcademy[hpIdx]) return { success: false, msg: 'No academy available.' };
+    const academy = state.youthAcademy[hpIdx];
+    if (playerIdx < 0 || playerIdx >= academy.length) return { success: false, msg: 'Invalid player.' };
+    const player = academy[playerIdx];
+    academy.splice(playerIdx, 1);
+    return { success: true, msg: `${player.name} released from the academy.` };
+  }
+
   function upgradeAcademyQuality(hpIdx) {
     if (!state.youthAcademyData || !state.youthAcademyData[hpIdx]) return { success: false, msg: 'No academy data.' };
     const ad = state.youthAcademyData[hpIdx];
@@ -1635,6 +1655,7 @@ const MTSM_ENGINE = (() => {
     saveGame,
     loadGame,
     signYouthPlayer,
+    releaseYouthPlayer,
     upgradeAcademyQuality,
     upgradeYouthCoach,
     downgradeYouthCoach,
