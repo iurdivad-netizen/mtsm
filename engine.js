@@ -1422,7 +1422,7 @@ const MTSM_ENGINE = (() => {
       const overall = Math.round(Object.values(skills).reduce((a, b) => a + b, 0) / MTSM_DATA.SKILLS.length);
       const potential = MTSM_DATA.randInt(55, 90); // how good they can become
       const wage = Math.round((overall * 20 + MTSM_DATA.randInt(0, 200)) / 10) * 10;
-      const value = Math.round(wage * 26);
+      const value = overall * 10000;
 
       players.push({
         id: Math.random().toString(36).substr(2, 9),
