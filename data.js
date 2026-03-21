@@ -59,6 +59,19 @@ const MTSM_DATA = (() => {
   const STAFF_QUALITIES = ['Useless','Poor','Average','Good','Excellent'];
   const STAFF_COSTS = [500, 1500, 3000, 6000, 12000]; // weekly wage
 
+  const ACADEMY_QUALITY = {
+    levels: ['Basic','Improved','Advanced','Elite','World Class'],
+    costs: [0, 40000, 120000, 300000, 600000],
+    baseSkillBonus: [0, 4, 8, 13, 18],       // added to youth player base skill range
+    prospectCount: [3, 3, 4, 4, 5]            // how many prospects arrive each cycle
+  };
+
+  const YOUTH_COACH_QUALITY = {
+    levels: ['None','Amateur','Semi-Pro','Professional','Elite'],
+    costs: [0, 800, 2000, 4500, 10000],       // weekly wage
+    trainBonus: [0, 0.05, 0.12, 0.20, 0.30]   // added to youth training chance
+  };
+
   const GROUND_UPGRADES = {
     capacity: { levels: [5000, 10000, 20000, 35000, 50000], costs: [0, 50000, 150000, 400000, 800000] },
     safety: { levels: ['Basic','Standard','Good','Excellent','World Class'], costs: [0, 30000, 80000, 200000, 500000] },
@@ -267,6 +280,8 @@ const MTSM_DATA = (() => {
     STAFF_ROLES,
     STAFF_QUALITIES,
     STAFF_COSTS,
+    ACADEMY_QUALITY,
+    YOUTH_COACH_QUALITY,
     GROUND_UPGRADES,
     RANDOM_EVENTS,
     generatePlayer,

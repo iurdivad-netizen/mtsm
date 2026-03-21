@@ -1040,10 +1040,54 @@ const MTSM_UI = (() => {
     const hpIdx = state.currentPlayerIndex;
     const academy = state.youthAcademy[hpIdx] || [];
     const team = MTSM_ENGINE.getCurrentHumanTeam();
+    const ad = (state.youthAcademyData && state.youthAcademyData[hpIdx]) || { quality: 0, youthCoach: 0 };
+
+    const acQuality = ad.quality;
+    const acLevelName = MTSM_DATA.ACADEMY_QUALITY.levels[acQuality];
+    const acNextCost = acQuality < 4 ? MTSM_DATA.ACADEMY_QUALITY.costs[acQuality + 1] : null;
+
+    const ycQuality = ad.youthCoach;
+    const ycLevelName = MTSM_DATA.YOUTH_COACH_QUALITY.levels[ycQuality];
+    const ycWage = MTSM_DATA.YOUTH_COACH_QUALITY.costs[ycQuality];
 
     return `
       <div class="panel-header">🌱 YOUTH ACADEMY — ${academy.length} prospect${academy.length !== 1 ? 's' : ''}</div>
       <div class="text-muted mb-4" style="font-size:13px;">Young players with potential. Low stats now but they develop faster. New prospects arrive every 4 weeks.</div>
+
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;">
+        <div class="staff-card" style="flex:1;min-width:200px;">
+          <div>
+            <div class="role">Academy Quality</div>
+            <div class="quality">${acLevelName}</div>
+            <div class="text-muted" style="font-size:12px;">Better academy = higher base skills & more prospects</div>
+          </div>
+          <div>
+            ${acNextCost !== null ? `
+              <button class="btn btn-small" onclick="MTSM_UI._upgradeAcademy()">
+                Upgrade (£${acNextCost.toLocaleString()})
+              </button>
+            ` : '<span class="text-muted" style="font-size:12px;">MAX</span>'}
+          </div>
+        </div>
+        <div class="staff-card" style="flex:1;min-width:200px;">
+          <div>
+            <div class="role">Youth Coach</div>
+            <div class="quality">${ycLevelName}</div>
+            <div class="text-muted" style="font-size:12px;">${ycQuality > 0 ? `Wage: £${ycWage.toLocaleString()}/week — Trains prospects while in academy` : 'Hire a youth coach to train prospects before signing'}</div>
+          </div>
+          <div class="btn-group">
+            <button class="btn btn-small" onclick="MTSM_UI._upgradeYouthCoach()" ${ycQuality >= 4 ? 'disabled style="opacity:0.3"' : ''}>
+              ${ycQuality === 0 ? 'Hire' : 'Upgrade'}
+            </button>
+            ${ycQuality > 0 ? `
+              <button class="btn btn-small btn-danger" onclick="MTSM_UI._downgradeYouthCoach()">
+                ${ycQuality === 1 ? 'Dismiss' : 'Downgrade'}
+              </button>
+            ` : ''}
+          </div>
+        </div>
+      </div>
+
       ${academy.length === 0 ? '<div class="text-muted text-center" style="padding:20px;">No prospects available. Check back in a few weeks.</div>' : `
         <div style="overflow-x:auto;">
           <table class="data-table">
@@ -1051,7 +1095,9 @@ const MTSM_UI = (() => {
               <tr>
                 <th>Pos</th><th>Name</th><th>Age</th>
                 ${MTSM_DATA.SKILLS.map(s => `<th>${s.substring(0, 3)}</th>`).join('')}
-                <th>Ovr</th><th>Pot</th><th>Fee</th><th>Wage</th><th></th>
+                <th>Ovr</th><th>Pot</th><th>Fee</th><th>Wage</th>
+                ${ycQuality > 0 ? '<th>Train</th>' : ''}
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -1065,6 +1111,14 @@ const MTSM_UI = (() => {
                   <td class="num text-success">${p.potential}</td>
                   <td class="num">£${p.value.toLocaleString()}</td>
                   <td class="num">£${p.wage.toLocaleString()}</td>
+                  ${ycQuality > 0 ? `
+                    <td>
+                      <select onchange="MTSM_UI._setYouthTraining(${idx}, this.value)" style="font-size:11px;padding:2px;">
+                        <option value="">—</option>
+                        ${MTSM_DATA.SKILLS.map(s => `<option value="${s}" ${p.training === s ? 'selected' : ''}>${s.substring(0,3)}</option>`).join('')}
+                      </select>
+                    </td>
+                  ` : ''}
                   <td><button class="btn btn-small" onclick="MTSM_UI._signYouth(${idx})" ${team.players.length >= 16 ? 'disabled style="opacity:0.3"' : ''}>Sign</button></td>
                 </tr>
               `).join('')}
@@ -1073,6 +1127,7 @@ const MTSM_UI = (() => {
         </div>
         <div class="mt-4 text-muted" style="font-size:12px;">
           ⭐ Potential shows the ceiling. Higher potential = faster growth during training.
+          ${ycQuality > 0 ? '🏋️ Youth coach trains selected skill each week.' : ''}
           Squad: ${team.players.length}/16
         </div>
       `}
@@ -1083,6 +1138,36 @@ const MTSM_UI = (() => {
     const state = MTSM_ENGINE.getState();
     const result = MTSM_ENGINE.signYouthPlayer(idx, state.currentPlayerIndex);
     showNotification(result.msg, !result.success);
+    renderGame('academy');
+  }
+
+  function _upgradeAcademy() {
+    const state = MTSM_ENGINE.getState();
+    const result = MTSM_ENGINE.upgradeAcademyQuality(state.currentPlayerIndex);
+    showNotification(result.msg, !result.success);
+    renderGame('academy');
+  }
+
+  function _upgradeYouthCoach() {
+    const state = MTSM_ENGINE.getState();
+    const result = MTSM_ENGINE.upgradeYouthCoach(state.currentPlayerIndex);
+    showNotification(result.msg, !result.success);
+    renderGame('academy');
+  }
+
+  function _downgradeYouthCoach() {
+    const state = MTSM_ENGINE.getState();
+    const result = MTSM_ENGINE.downgradeYouthCoach(state.currentPlayerIndex);
+    showNotification(result.msg, !result.success);
+    renderGame('academy');
+  }
+
+  function _setYouthTraining(idx, skill) {
+    const state = MTSM_ENGINE.getState();
+    const hpIdx = state.currentPlayerIndex;
+    if (state.youthAcademy && state.youthAcademy[hpIdx] && state.youthAcademy[hpIdx][idx]) {
+      state.youthAcademy[hpIdx][idx].training = skill || null;
+    }
     renderGame('academy');
   }
 
@@ -2005,6 +2090,10 @@ const MTSM_UI = (() => {
     _toggleAllOptions,
     _setFormation,
     _signYouth,
+    _upgradeAcademy,
+    _upgradeYouthCoach,
+    _downgradeYouthCoach,
+    _setYouthTraining,
     _submitBid,
     _showNegotiationModal,
     _showCounterOfferModal,
