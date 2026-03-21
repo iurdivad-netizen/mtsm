@@ -491,7 +491,8 @@ const MTSM_ENGINE = (() => {
   }
 
   function processTraining() {
-    for (const div of state.divisions) {
+    for (let dIdx = 0; dIdx < state.divisions.length; dIdx++) {
+      const div = state.divisions[dIdx];
       for (const team of div.teams) {
         const coachQ = team.staff.Coach.quality;
         for (const player of team.players) {
@@ -519,6 +520,11 @@ const MTSM_ENGINE = (() => {
             player.overall = Math.round(
               Object.values(player.skills).reduce((a, b) => a + b, 0) / MTSM_DATA.SKILLS.length
             );
+            // Recalculate transfer value based on new overall
+            const ageMult = player.age <= 22 ? 1.3 - (player.age - 17) * 0.04 : player.age <= 29 ? 1.0 : 1.0 - (player.age - 29) * 0.07;
+            const divMult = [1.5, 1.2, 1.0, 0.8][dIdx] || 1.0;
+            const youthMult = player.isYouth ? 0.3 : 1.0;
+            player.value = Math.round(player.overall * 10000 * ageMult * divMult * youthMult);
             // Log training news for human teams
             if (team.isHuman && improvement > 0) {
               pushNews({ type: 'TRAINING', text: `${player.name} improved ${player.training} (${oldSkill}→${player.skills[player.training]}).` });
@@ -807,7 +813,8 @@ const MTSM_ENGINE = (() => {
     }
 
     // Age players and retire old ones
-    for (const div of state.divisions) {
+    for (let dIdx = 0; dIdx < state.divisions.length; dIdx++) {
+      const div = state.divisions[dIdx];
       for (const team of div.teams) {
         for (const player of team.players) {
           player.age++;
@@ -822,6 +829,11 @@ const MTSM_ENGINE = (() => {
               Object.values(player.skills).reduce((a, b) => a + b, 0) / MTSM_DATA.SKILLS.length
             );
           }
+          // Recalculate transfer value each season
+          const ageMult = player.age <= 22 ? 1.3 - (player.age - 17) * 0.04 : player.age <= 29 ? 1.0 : 1.0 - (player.age - 29) * 0.07;
+          const divMult = [1.5, 1.2, 1.0, 0.8][dIdx] || 1.0;
+          const youthMult = player.isYouth ? 0.3 : 1.0;
+          player.value = Math.round(player.overall * 10000 * ageMult * divMult * youthMult);
         }
         // Auto-retire very old players
         const retired = team.players.filter(p => p.age >= 37);
