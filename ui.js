@@ -1404,7 +1404,7 @@ const MTSM_UI = (() => {
     const staffWages = Object.values(team.staff).reduce((s, st) => s + st.wage, 0);
 
     // Get weekly finances for this team
-    const weeklyEntries = (state.weeklyFinances && state.weeklyFinances[hp.teamIndex]) || [];
+    const weeklyEntries = (state.weeklyFinances && state.weeklyFinances[state.currentPlayerIndex]) || [];
     const incomeEntries = weeklyEntries.filter(e => e.type === 'income');
     const expenseEntries = weeklyEntries.filter(e => e.type === 'expense');
     const totalIncome = incomeEntries.reduce((s, e) => s + e.amount, 0);
