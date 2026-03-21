@@ -109,7 +109,11 @@ const MTSM_DATA = (() => {
     }
     const overall = Math.round(Object.values(skills).reduce((a, b) => a + b, 0) / SKILLS.length);
     const wage = Math.round((overall * 50 + randInt(0, 500)) / 10) * 10;
-    const value = overall * 10000;
+    // Age multiplier: young players (17-22) worth more, older (31+) worth less
+    const ageMult = age <= 22 ? 1.3 - (age - 17) * 0.04 : age <= 29 ? 1.0 : 1.0 - (age - 29) * 0.07;
+    // Division multiplier: higher divisions increase value
+    const divMult = [1.5, 1.2, 1.0, 0.8][divisionTier] || 1.0;
+    const value = Math.round(overall * 10000 * ageMult * divMult);
 
     return {
       id: Math.random().toString(36).substr(2, 9),
