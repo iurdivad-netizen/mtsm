@@ -834,6 +834,10 @@ const MTSM_ENGINE = (() => {
           const divMult = [1.5, 1.2, 1.0, 0.8][dIdx] || 1.0;
           const youthMult = player.isYouth ? 0.3 : 1.0;
           player.value = Math.round(player.overall * 10000 * ageMult * divMult * youthMult);
+          // After a season on the senior squad, youth players graduate to normal valuation
+          if (player.isYouth) {
+            delete player.isYouth;
+          }
         }
         // Auto-retire very old players
         const retired = team.players.filter(p => p.age >= 37);
