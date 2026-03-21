@@ -109,7 +109,7 @@ const MTSM_DATA = (() => {
     }
     const overall = Math.round(Object.values(skills).reduce((a, b) => a + b, 0) / SKILLS.length);
     const wage = Math.round((overall * 50 + randInt(0, 500)) / 10) * 10;
-    const value = Math.round(wage * 52 * (1 + (99 - overall) / 100 * 0.5));
+    const value = overall * 10000;
 
     return {
       id: Math.random().toString(36).substr(2, 9),
