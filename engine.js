@@ -69,10 +69,15 @@ const MTSM_ENGINE = (() => {
 
     // Generate youth academy pools if option is on
     let youthAcademy = null;
+    let youthAcademyData = null;
     if (gameOptions.youthAcademy) {
       youthAcademy = {};
+      youthAcademyData = {};
       for (let i = 0; i < humanPlayers.length; i++) {
-        youthAcademy[i] = generateYouthPlayers(3);
+        youthAcademyData[i] = { quality: 0, youthCoach: 0 }; // both start at level 0
+        const prospectCount = MTSM_DATA.ACADEMY_QUALITY.prospectCount[0];
+        const skillBonus = MTSM_DATA.ACADEMY_QUALITY.baseSkillBonus[0];
+        youthAcademy[i] = generateYouthPlayers(prospectCount, skillBonus);
       }
     }
 
@@ -108,6 +113,7 @@ const MTSM_ENGINE = (() => {
       nationalCup,
       leagueTrophy,
       youthAcademy,
+      youthAcademyData,
       clubHistory,
       matchLog
     };
@@ -437,8 +443,37 @@ const MTSM_ENGINE = (() => {
     if (state.options.youthAcademy && state.youthAcademy && state.week % 4 === 0) {
       for (let i = 0; i < state.humanPlayers.length; i++) {
         if (state.humanPlayers[i].sacked) continue;
-        state.youthAcademy[i] = generateYouthPlayers(3);
+        const ad = (state.youthAcademyData && state.youthAcademyData[i]) || { quality: 0, youthCoach: 0 };
+        const prospectCount = MTSM_DATA.ACADEMY_QUALITY.prospectCount[ad.quality];
+        const skillBonus = MTSM_DATA.ACADEMY_QUALITY.baseSkillBonus[ad.quality];
+        state.youthAcademy[i] = generateYouthPlayers(prospectCount, skillBonus);
         pushNews({ type: 'ACADEMY', text: 'New youth prospects have arrived at the academy!' });
+      }
+    }
+
+    // Youth coach training (if enabled) — trains academy prospects each week
+    if (state.options.youthAcademy && state.youthAcademy && state.youthAcademyData) {
+      for (let i = 0; i < state.humanPlayers.length; i++) {
+        if (state.humanPlayers[i].sacked) continue;
+        const ad = state.youthAcademyData[i];
+        if (!ad || ad.youthCoach <= 0) continue;
+        const academy = state.youthAcademy[i];
+        if (!academy) continue;
+        const coachBonus = MTSM_DATA.YOUTH_COACH_QUALITY.trainBonus[ad.youthCoach];
+        for (const player of academy) {
+          // Youth coach trains targeted skill if set, otherwise random
+          const skill = player.training || MTSM_DATA.pick(MTSM_DATA.SKILLS);
+          const trainChance = 0.15 + coachBonus;
+          if (Math.random() < trainChance) {
+            player.skills[skill] = Math.min(99, player.skills[skill] + 1);
+            player.overall = Math.round(
+              Object.values(player.skills).reduce((a, b) => a + b, 0) / MTSM_DATA.SKILLS.length
+            );
+            // Recalculate value
+            const ageMult = player.age <= 22 ? 1.3 - (player.age - 17) * 0.04 : 1.0;
+            player.value = Math.round(player.overall * 10000 * ageMult * 0.3);
+          }
+        }
       }
     }
 
@@ -483,9 +518,18 @@ const MTSM_ENGINE = (() => {
       for (const team of div.teams) {
         const playerWages = team.players.reduce((s, p) => s + p.wage, 0);
         const staffWages = Object.values(team.staff).reduce((s, st) => s + st.wage, 0);
-        team.balance -= playerWages + staffWages;
-        team.weeklyWages = playerWages + staffWages;
-        recordFinance(team, 'expense', playerWages + staffWages, 'Wages (players + staff)');
+        // Youth coach wage (if applicable)
+        let youthCoachWage = 0;
+        if (state.options.youthAcademy && team.isHuman && state.youthAcademyData) {
+          const hpIdx = team.humanPlayerIndex;
+          const ad = state.youthAcademyData[hpIdx];
+          if (ad && ad.youthCoach > 0) {
+            youthCoachWage = MTSM_DATA.YOUTH_COACH_QUALITY.costs[ad.youthCoach];
+          }
+        }
+        team.balance -= playerWages + staffWages + youthCoachWage;
+        team.weeklyWages = playerWages + staffWages + youthCoachWage;
+        recordFinance(team, 'expense', playerWages + staffWages + youthCoachWage, 'Wages (players + staff)');
       }
     }
   }
@@ -1005,7 +1049,10 @@ const MTSM_ENGINE = (() => {
     if (state.options.youthAcademy) {
       for (let i = 0; i < state.humanPlayers.length; i++) {
         if (!state.humanPlayers[i].sacked) {
-          state.youthAcademy[i] = generateYouthPlayers(3);
+          const ad = (state.youthAcademyData && state.youthAcademyData[i]) || { quality: 0 };
+          const prospectCount = MTSM_DATA.ACADEMY_QUALITY.prospectCount[ad.quality];
+          const skillBonus = MTSM_DATA.ACADEMY_QUALITY.baseSkillBonus[ad.quality];
+          state.youthAcademy[i] = generateYouthPlayers(prospectCount, skillBonus);
         }
       }
     }
@@ -1420,12 +1467,13 @@ const MTSM_ENGINE = (() => {
   }
 
   // ===== YOUTH ACADEMY =====
-  function generateYouthPlayers(count) {
+  function generateYouthPlayers(count, skillBonus) {
+    const bonus = skillBonus || 0;
     const players = [];
     for (let i = 0; i < count; i++) {
       const pos = MTSM_DATA.pick(['GK', 'DEF', 'DEF', 'MID', 'MID', 'FWD']);
       const age = MTSM_DATA.randInt(16, 18);
-      const baseSkill = MTSM_DATA.randInt(15, 35);
+      const baseSkill = MTSM_DATA.randInt(15, 35) + bonus;
       const skills = {};
       for (const sk of MTSM_DATA.SKILLS) {
         let val = baseSkill + MTSM_DATA.randInt(-8, 8);
@@ -1480,6 +1528,40 @@ const MTSM_ENGINE = (() => {
     return { success: true, msg: `Youth prospect ${player.name} signed for \u00a3${signingFee.toLocaleString()}!` };
   }
 
+  function upgradeAcademyQuality(hpIdx) {
+    if (!state.youthAcademyData || !state.youthAcademyData[hpIdx]) return { success: false, msg: 'No academy data.' };
+    const ad = state.youthAcademyData[hpIdx];
+    if (ad.quality >= 4) return { success: false, msg: 'Academy already at maximum quality.' };
+    const newLevel = ad.quality + 1;
+    const cost = MTSM_DATA.ACADEMY_QUALITY.costs[newLevel];
+    const hp = state.humanPlayers[hpIdx];
+    const team = state.divisions[hp.division].teams[hp.teamIndex];
+    if (team.balance < cost) return { success: false, msg: `Insufficient funds. Need £${cost.toLocaleString()}.` };
+    team.balance -= cost;
+    ad.quality = newLevel;
+    pushNews({ type: 'ACADEMY', text: `Youth academy upgraded to ${MTSM_DATA.ACADEMY_QUALITY.levels[newLevel]}!` });
+    return { success: true, msg: `Academy upgraded to ${MTSM_DATA.ACADEMY_QUALITY.levels[newLevel]}! Cost: £${cost.toLocaleString()}` };
+  }
+
+  function upgradeYouthCoach(hpIdx) {
+    if (!state.youthAcademyData || !state.youthAcademyData[hpIdx]) return { success: false, msg: 'No academy data.' };
+    const ad = state.youthAcademyData[hpIdx];
+    if (ad.youthCoach >= 4) return { success: false, msg: 'Youth coach already at maximum quality.' };
+    ad.youthCoach++;
+    pushNews({ type: 'ACADEMY', text: `Youth coach upgraded to ${MTSM_DATA.YOUTH_COACH_QUALITY.levels[ad.youthCoach]}!` });
+    return { success: true, msg: `Youth coach upgraded to ${MTSM_DATA.YOUTH_COACH_QUALITY.levels[ad.youthCoach]}! Wage: £${MTSM_DATA.YOUTH_COACH_QUALITY.costs[ad.youthCoach].toLocaleString()}/week` };
+  }
+
+  function downgradeYouthCoach(hpIdx) {
+    if (!state.youthAcademyData || !state.youthAcademyData[hpIdx]) return { success: false, msg: 'No academy data.' };
+    const ad = state.youthAcademyData[hpIdx];
+    if (ad.youthCoach <= 0) return { success: false, msg: 'No youth coach to downgrade.' };
+    ad.youthCoach--;
+    const levelName = MTSM_DATA.YOUTH_COACH_QUALITY.levels[ad.youthCoach];
+    pushNews({ type: 'ACADEMY', text: `Youth coach ${ad.youthCoach === 0 ? 'dismissed' : 'downgraded to ' + levelName}.` });
+    return { success: true, msg: ad.youthCoach === 0 ? 'Youth coach dismissed.' : `Youth coach downgraded to ${levelName}.` };
+  }
+
   // ===== SET FORMATION =====
   function setFormation(formationName, teamObj) {
     if (!FORMATIONS[formationName]) return { success: false, msg: 'Invalid formation.' };
@@ -1530,6 +1612,7 @@ const MTSM_ENGINE = (() => {
     if (!savedState.clubHistory) savedState.clubHistory = {};
     if (!savedState.matchLog) savedState.matchLog = {};
     if (!savedState.weeklyFinances) savedState.weeklyFinances = {};
+    if (!savedState.youthAcademyData) savedState.youthAcademyData = {};
     state = savedState;
     return true;
   }
@@ -1552,6 +1635,9 @@ const MTSM_ENGINE = (() => {
     saveGame,
     loadGame,
     signYouthPlayer,
+    upgradeAcademyQuality,
+    upgradeYouthCoach,
+    downgradeYouthCoach,
     setFormation,
     setStartingXI,
     autoSelectXI,
