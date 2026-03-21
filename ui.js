@@ -7,6 +7,60 @@ const MTSM_UI = (() => {
   let currentView = 'title';
   let notification = '';
 
+  // ===== CLUB LOGO GENERATOR =====
+  function _hashName(name) {
+    let h = 0;
+    for (let i = 0; i < name.length; i++) h = ((h << 5) - h + name.charCodeAt(i)) | 0;
+    return Math.abs(h);
+  }
+
+  function _generateClubLogo(teamName) {
+    const h = _hashName(teamName);
+    const words = teamName.split(' ');
+    const initials = words.length >= 2
+      ? (words[0][0] + words[words.length - 1][0]).toUpperCase()
+      : teamName.substring(0, 2).toUpperCase();
+
+    // Deterministic colours from team name hash
+    const hue1 = h % 360;
+    const hue2 = (h * 7 + 137) % 360;
+    const col1 = `hsl(${hue1}, 70%, 50%)`;
+    const col2 = `hsl(${hue2}, 60%, 40%)`;
+
+    // Pick a shield variant based on hash
+    const variant = h % 4;
+    let decoration = '';
+    if (variant === 0) {
+      // Horizontal stripe
+      decoration = `<rect x="25" y="42" width="50" height="8" fill="${col2}" opacity="0.6"/>`;
+    } else if (variant === 1) {
+      // Vertical stripe
+      decoration = `<rect x="46" y="15" width="8" height="60" fill="${col2}" opacity="0.6"/>`;
+    } else if (variant === 2) {
+      // Diagonal halves
+      decoration = `<polygon points="50,12 78,30 50,78" fill="${col2}" opacity="0.5"/>`;
+    } else {
+      // Star
+      decoration = `<polygon points="50,58 53,65 61,65 55,70 57,77 50,73 43,77 45,70 39,65 47,65" fill="${col2}" opacity="0.7"/>`;
+    }
+
+    // Football at top
+    const ball = `<circle cx="50" cy="18" r="5" fill="none" stroke="${col2}" stroke-width="1" opacity="0.5"/>`;
+
+    return `<svg viewBox="0 0 100 100" class="club-logo" xmlns="http://www.w3.org/2000/svg">
+      <!-- Shield shape -->
+      <path d="M50 8 L78 22 L78 55 Q78 78 50 92 Q22 78 22 55 L22 22 Z"
+            fill="${col1}" stroke="var(--color-primary)" stroke-width="2"/>
+      <path d="M50 12 L75 24 L75 54 Q75 75 50 88 Q25 75 25 54 L25 24 Z"
+            fill="${col2}" opacity="0.25"/>
+      ${decoration}
+      ${ball}
+      <!-- Initials -->
+      <text x="50" y="48" text-anchor="middle" font-family="var(--font-display)"
+            font-size="18" fill="var(--color-text-bright)" letter-spacing="2">${initials}</text>
+    </svg>`;
+  }
+
   function showNotification(msg, isError = false) {
     notification = msg;
     const el = document.getElementById('notification');
@@ -1468,19 +1522,7 @@ const MTSM_UI = (() => {
     return `
       <div class="panel-header">🏟️ GROUND</div>
       <div class="ground-visual">
-        <pre style="color:var(--color-primary);font-size:13px;line-height:1.3;">
-  ╔════════════════════════════╗
-  ║  ┌───────────────────┐    ║
-  ║  │                   │    ║
-  ║  └─────────┬─────────┘    ║
-  ║            │              ║
-  ║     ○──────┼──────○       ║
-  ║            │              ║
-  ║  ┌─────────┴─────────┐    ║
-  ║  │                   │    ║
-  ║  └───────────────────┘    ║
-  ╚════════════════════════════╝
-        </pre>
+        ${_generateClubLogo(team.name)}
         <div class="text-accent" style="font-family:var(--font-display);font-size:11px;">${team.name} Stadium</div>
       </div>
 
