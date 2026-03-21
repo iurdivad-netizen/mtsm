@@ -633,6 +633,14 @@ select {
   margin-bottom: var(--space-4);
 }
 
+.club-logo {
+  width: 120px;
+  height: 120px;
+  margin: 0 auto var(--space-3);
+  display: block;
+  filter: drop-shadow(0 0 6px rgba(0, 221, 68, 0.3));
+}
+
 .ground-stat {
   display: flex;
   justify-content: space-between;
