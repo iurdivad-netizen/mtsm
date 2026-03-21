@@ -502,7 +502,7 @@ const MTSM_UI = (() => {
             <tr>
               <th>Pos</th><th>Name</th><th>Age</th>
               ${MTSM_DATA.SKILLS.map(s => `<th>${s.substring(0, 3)}</th>`).join('')}
-              <th>Ovr</th><th>Wage</th><th>Status</th>
+              <th>Ovr</th><th>Pot</th><th>Wage</th><th>Status</th>
             </tr>
           </thead>
           <tbody>
@@ -513,8 +513,10 @@ const MTSM_UI = (() => {
                 <td class="num">${p.age}</td>
                 ${MTSM_DATA.SKILLS.map(s => `<td class="num">${p.skills[s]}</td>`).join('')}
                 <td class="num text-accent">${p.overall}</td>
+                <td class="num">${p.isYouth && p.potential ? `<span class="text-success">${p.potential}</span>` : '—'}</td>
                 <td class="num">£${p.wage}</td>
                 <td>${p.injured > 0 ? `<span class="text-danger">INJ ${p.injured}w</span>` :
+                      p.isYouth ? `<span class="text-success">Youth</span>${p.training ? ` — Training ${p.training}` : ''}` :
                       p.training ? `<span class="text-info">Training ${p.training}</span>` : '✓'}</td>
               </tr>
             `).join('')}
