@@ -471,6 +471,7 @@ const MTSM_ENGINE = (() => {
           const skill = player.training || MTSM_DATA.pick(MTSM_DATA.SKILLS);
           const trainChance = 0.15 + coachBonus;
           if (Math.random() < trainChance) {
+            const oldSkill = player.skills[skill];
             player.skills[skill] = Math.min(99, player.skills[skill] + 1);
             player.overall = Math.round(
               Object.values(player.skills).reduce((a, b) => a + b, 0) / MTSM_DATA.SKILLS.length
@@ -478,6 +479,7 @@ const MTSM_ENGINE = (() => {
             // Recalculate value
             const ageMult = player.age <= 22 ? 1.3 - (player.age - 17) * 0.04 : 1.0;
             player.value = Math.round(player.overall * 10000 * ageMult * 0.3);
+            pushNews({ type: 'ACADEMY', text: `Youth prospect ${player.name} improved ${skill} (${oldSkill}→${player.skills[skill]}) in academy training.` });
           }
         }
       }
@@ -886,6 +888,9 @@ const MTSM_ENGINE = (() => {
           player.value = Math.round(player.overall * 10000 * ageMult * divMult * youthMult);
           // After a season on the senior squad, youth players graduate to normal valuation
           if (player.isYouth) {
+            if (team.isHuman) {
+              pushNews({ type: 'ACADEMY', text: `${player.name} (${player.position}, Ovr ${player.overall}) has graduated from youth status and is now a full senior squad member!` });
+            }
             delete player.isYouth;
           }
         }
@@ -1536,6 +1541,8 @@ const MTSM_ENGINE = (() => {
     team.balance -= signingFee;
     team.players.push(player);
     academy.splice(playerIdx, 1);
+    recordFinance(team, 'expense', signingFee, `Youth signing: ${player.name}`);
+    pushNews({ type: 'ACADEMY', text: `Youth prospect ${player.name} (${player.position}, Ovr ${player.overall}, Pot ${player.potential}) promoted to the first team for ${String.fromCharCode(163)}${signingFee.toLocaleString()}!` });
     return { success: true, msg: `Youth prospect ${player.name} signed for \u00a3${signingFee.toLocaleString()}!` };
   }
 
