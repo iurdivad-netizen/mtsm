@@ -665,7 +665,7 @@ const MTSM_UI = (() => {
   }
 
   // ===== TRANSFERS =====
-  let _transferFilter = { position: '', minOvr: 0, maxOvr: 99, maxPrice: Infinity };
+  let _transferFilter = { position: '', minOvr: 0, maxOvr: 99, minAge: 0, maxAge: 99, maxPrice: Infinity };
 
   function renderTransfers() {
     const state = MTSM_ENGINE.getState();
@@ -681,6 +681,12 @@ const MTSM_UI = (() => {
     }
     if (_transferFilter.maxOvr < 99) {
       filtered = filtered.filter(p => p.overall <= _transferFilter.maxOvr);
+    }
+    if (_transferFilter.minAge > 0) {
+      filtered = filtered.filter(p => p.age >= _transferFilter.minAge);
+    }
+    if (_transferFilter.maxAge < 99) {
+      filtered = filtered.filter(p => p.age <= _transferFilter.maxAge);
     }
     filtered = filtered.slice(0, 30); // Show max 30
 
@@ -735,6 +741,22 @@ const MTSM_UI = (() => {
           <option value="50" ${_transferFilter.maxOvr === 50 ? 'selected' : ''}>50-</option>
           <option value="40" ${_transferFilter.maxOvr === 40 ? 'selected' : ''}>40-</option>
           <option value="30" ${_transferFilter.maxOvr === 30 ? 'selected' : ''}>30-</option>
+        </select>
+        <select onchange="MTSM_UI._transferFilter.minAge=parseInt(this.value)||0;MTSM_UI.renderGame('transfers');">
+          <option value="0">Min Age: Any</option>
+          <option value="16" ${_transferFilter.minAge === 16 ? 'selected' : ''}>16+</option>
+          <option value="20" ${_transferFilter.minAge === 20 ? 'selected' : ''}>20+</option>
+          <option value="24" ${_transferFilter.minAge === 24 ? 'selected' : ''}>24+</option>
+          <option value="28" ${_transferFilter.minAge === 28 ? 'selected' : ''}>28+</option>
+          <option value="32" ${_transferFilter.minAge === 32 ? 'selected' : ''}>32+</option>
+        </select>
+        <select onchange="MTSM_UI._transferFilter.maxAge=parseInt(this.value)||99;MTSM_UI.renderGame('transfers');">
+          <option value="99">Max Age: Any</option>
+          <option value="20" ${_transferFilter.maxAge === 20 ? 'selected' : ''}>20-</option>
+          <option value="24" ${_transferFilter.maxAge === 24 ? 'selected' : ''}>24-</option>
+          <option value="28" ${_transferFilter.maxAge === 28 ? 'selected' : ''}>28-</option>
+          <option value="32" ${_transferFilter.maxAge === 32 ? 'selected' : ''}>32-</option>
+          <option value="36" ${_transferFilter.maxAge === 36 ? 'selected' : ''}>36-</option>
         </select>
       </div>
       <div style="overflow-x:auto;">
