@@ -1014,9 +1014,9 @@ const MTSM_UI = (() => {
         <table class="data-table">
           <thead>
             <tr>
-              <th></th><th>Pos</th><th>Name</th><th>Age</th>
+              <th></th><th>Pos</th><th>Name</th><th>Age</th><th>Ovr</th>
               ${MTSM_DATA.SKILLS.map(s => `<th>${s.substring(0, 3)}</th>`).join('')}
-              <th>Ovr</th><th>Status</th>
+              <th>Status</th>
             </tr>
           </thead>
           <tbody>
@@ -1028,8 +1028,8 @@ const MTSM_UI = (() => {
                   <td class="pos-${p.position.toLowerCase()}">${p.position}</td>
                   <td>${p.name}</td>
                   <td class="num">${p.age}</td>
-                  ${MTSM_DATA.SKILLS.map(s => `<td class="num">${p.skills[s]}</td>`).join('')}
                   <td class="num text-accent">${p.overall}</td>
+                  ${MTSM_DATA.SKILLS.map(s => `<td class="num">${p.skills[s]}</td>`).join('')}
                   <td>${isSelected ? '<span class="text-success">STARTING</span>' : '<span class="text-muted">Bench</span>'}</td>
                 </tr>
               `;
@@ -1040,8 +1040,8 @@ const MTSM_UI = (() => {
                 <td class="pos-${p.position.toLowerCase()}">${p.position}</td>
                 <td>${p.name}</td>
                 <td class="num">${p.age}</td>
-                ${MTSM_DATA.SKILLS.map(s => `<td class="num">${p.skills[s]}</td>`).join('')}
                 <td class="num">${p.overall}</td>
+                ${MTSM_DATA.SKILLS.map(s => `<td class="num">${p.skills[s]}</td>`).join('')}
                 <td><span class="text-danger">INJ ${p.injured}w</span></td>
               </tr>
             `).join('')}
