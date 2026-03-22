@@ -251,11 +251,12 @@ const MTSM_ENGINE = (() => {
   function recordFinance(team, type, amount, label) {
     if (!team.isHuman || !state.weeklyFinances) return;
     // Find the human team index
-    for (const hp of state.humanPlayers) {
+    for (let i = 0; i < state.humanPlayers.length; i++) {
+      const hp = state.humanPlayers[i];
       if (hp.sacked) continue;
       const t = state.divisions[hp.division].teams[hp.teamIndex];
-      if (t === team && state.weeklyFinances[hp.teamIndex]) {
-        state.weeklyFinances[hp.teamIndex].push({ type, amount, label });
+      if (t === team && state.weeklyFinances[i]) {
+        state.weeklyFinances[i].push({ type, amount, label });
         break;
       }
     }
@@ -274,9 +275,9 @@ const MTSM_ENGINE = (() => {
 
     // Reset weekly finances for all human teams
     state.weeklyFinances = {};
-    for (const hp of state.humanPlayers) {
-      if (hp.sacked) continue;
-      state.weeklyFinances[hp.teamIndex] = [];
+    for (let i = 0; i < state.humanPlayers.length; i++) {
+      if (state.humanPlayers[i].sacked) continue;
+      state.weeklyFinances[i] = [];
     }
 
     for (let d = 0; d < 4; d++) {
@@ -735,6 +736,7 @@ const MTSM_ENGINE = (() => {
       const finalPrice = Math.min(bidAmount, askingPrice);
       if (teamObj.balance < finalPrice) return { success: false, msg: 'Insufficient funds.' };
       teamObj.balance -= finalPrice;
+      recordFinance(teamObj, 'expense', finalPrice, `Transfer: ${player.name}`);
       delete player.askingPrice;
       teamObj.players.push(player);
       state.transferPool.splice(idx, 1);
@@ -747,6 +749,7 @@ const MTSM_ENGINE = (() => {
 
     const finalPrice = askingPrice;
     teamObj.balance -= finalPrice;
+    recordFinance(teamObj, 'expense', finalPrice, `Transfer: ${player.name}`);
     delete player.askingPrice;
     teamObj.players.push(player);
     state.transferPool.splice(idx, 1);
@@ -762,6 +765,7 @@ const MTSM_ENGINE = (() => {
     const player = teamObj.players[idx];
     const salePrice = Math.round(player.value * (0.7 + Math.random() * 0.5));
     teamObj.balance += salePrice;
+    recordFinance(teamObj, 'income', salePrice, `Sale: ${player.name}`);
     player.askingPrice = Math.round(salePrice * 1.2);
     if (teamObj.isHuman) pushNews({ type: 'TRANSFER', text: `${player.name} (${player.position}, OVR ${player.overall}) sold for £${salePrice.toLocaleString()}.` });
     state.transferPool.push(player);
@@ -798,6 +802,7 @@ const MTSM_ENGINE = (() => {
     const cost = upgrade.costs[currentLevel + 1];
     if (teamObj.balance < cost) return { success: false, msg: `Insufficient funds. Need £${cost.toLocaleString()}.` };
     teamObj.balance -= cost;
+    recordFinance(teamObj, 'expense', cost, `Ground upgrade: ${aspect}`);
     teamObj.ground[aspect]++;
     if (teamObj.isHuman) pushNews({ type: 'GROUND', text: `${aspect.charAt(0).toUpperCase() + aspect.slice(1)} upgraded for £${cost.toLocaleString()}.` });
     return { success: true, msg: `${aspect.charAt(0).toUpperCase() + aspect.slice(1)} upgraded! Cost: £${cost.toLocaleString()}` };
@@ -1565,6 +1570,7 @@ const MTSM_ENGINE = (() => {
     const team = state.divisions[hp.division].teams[hp.teamIndex];
     if (team.balance < cost) return { success: false, msg: `Insufficient funds. Need £${cost.toLocaleString()}.` };
     team.balance -= cost;
+    recordFinance(team, 'expense', cost, `Academy upgrade: ${MTSM_DATA.ACADEMY_QUALITY.levels[newLevel]}`);
     ad.quality = newLevel;
     pushNews({ type: 'ACADEMY', text: `Youth academy upgraded to ${MTSM_DATA.ACADEMY_QUALITY.levels[newLevel]}!` });
     return { success: true, msg: `Academy upgraded to ${MTSM_DATA.ACADEMY_QUALITY.levels[newLevel]}! Cost: £${cost.toLocaleString()}` };
