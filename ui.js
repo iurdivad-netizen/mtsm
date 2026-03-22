@@ -600,16 +600,17 @@ const MTSM_UI = (() => {
   }
 
   // ===== NEWS BOARD =====
-  let _newsFilter = 'ALL';
+  let _newsFilters = new Set(); // empty = show all
   let _newsWeekFilter = 'ALL';
 
   function renderNewsBoard() {
     const state = MTSM_ENGINE.getState();
     const log = state.newsLog || [];
-    const types = ['ALL', ...new Set(log.map(n => n.type))];
+    const types = [...new Set(log.map(n => n.type))];
     const weekFilters = ['ALL', 'LAST WEEK'];
+    const allSelected = _newsFilters.size === 0;
 
-    let filtered = _newsFilter === 'ALL' ? log : log.filter(n => n.type === _newsFilter);
+    let filtered = allSelected ? log : log.filter(n => _newsFilters.has(n.type));
     if (_newsWeekFilter === 'LAST WEEK') {
       let targetSeason = state.season;
       let targetWeek = state.week - 1;
@@ -635,10 +636,15 @@ const MTSM_UI = (() => {
           </button>
         `).join('')}
         <span style="font-size:12px;font-weight:bold;margin:0 4px 0 12px;">Type:</span>
+        <button class="btn btn-small${allSelected ? ' active' : ''}"
+          onclick="MTSM_UI._filterNews('ALL')"
+          style="font-size:11px;padding:2px 8px;${allSelected ? 'background:var(--color-accent);color:var(--color-bg);' : ''}">
+          ALL
+        </button>
         ${types.map(t => `
-          <button class="btn btn-small${_newsFilter === t ? ' active' : ''}"
+          <button class="btn btn-small${_newsFilters.has(t) ? ' active' : ''}"
             onclick="MTSM_UI._filterNews('${t}')"
-            style="font-size:11px;padding:2px 8px;${_newsFilter === t ? 'background:var(--color-accent);color:var(--color-bg);' : ''}">
+            style="font-size:11px;padding:2px 8px;${_newsFilters.has(t) ? 'background:var(--color-accent);color:var(--color-bg);' : ''}">
             ${t}
           </button>
         `).join('')}
@@ -658,7 +664,13 @@ const MTSM_UI = (() => {
   }
 
   function _filterNews(type) {
-    _newsFilter = type;
+    if (type === 'ALL') {
+      _newsFilters.clear();
+    } else if (_newsFilters.has(type)) {
+      _newsFilters.delete(type);
+    } else {
+      _newsFilters.add(type);
+    }
     renderGame('news');
   }
 
