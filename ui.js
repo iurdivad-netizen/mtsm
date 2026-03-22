@@ -500,9 +500,9 @@ const MTSM_UI = (() => {
         <table class="data-table">
           <thead>
             <tr>
-              <th>Pos</th><th>Name</th><th>Age</th>
+              <th>Pos</th><th>Name</th><th>Age</th><th>Ovr</th>
               ${MTSM_DATA.SKILLS.map(s => `<th>${s.substring(0, 3)}</th>`).join('')}
-              <th>Ovr</th><th>Pot</th><th>Wage</th><th>Status</th>
+              <th>Pot</th><th>Wage</th><th>Status</th>
             </tr>
           </thead>
           <tbody>
@@ -511,8 +511,8 @@ const MTSM_UI = (() => {
                 <td class="pos-${p.position.toLowerCase()}">${p.position}</td>
                 <td>${p.name}</td>
                 <td class="num">${p.age}</td>
-                ${MTSM_DATA.SKILLS.map(s => `<td class="num">${p.skills[s]}</td>`).join('')}
                 <td class="num text-accent">${p.overall}</td>
+                ${MTSM_DATA.SKILLS.map(s => `<td class="num">${p.skills[s]}</td>`).join('')}
                 <td class="num">${p.isYouth && p.potential ? `<span class="text-success">${p.potential}</span>` : '—'}</td>
                 <td class="num">£${p.wage}</td>
                 <td>${p.injured > 0 ? `<span class="text-danger">INJ ${p.injured}w</span>` :
@@ -556,7 +556,7 @@ const MTSM_UI = (() => {
         <table class="data-table">
           <thead>
             <tr>
-              <th>Player</th><th>Pos</th>
+              <th>Player</th><th>Pos</th><th>Ovr</th>
               ${MTSM_DATA.SKILLS.map(s => `<th>${s.substring(0, 3)}</th>`).join('')}
               <th>Training</th>
             </tr>
@@ -566,6 +566,7 @@ const MTSM_UI = (() => {
               <tr>
                 <td>${p.name}${p.injured > 0 ? ' <span class="text-danger">(INJ)</span>' : ''}</td>
                 <td class="pos-${p.position.toLowerCase()}">${p.position}</td>
+                <td class="num text-accent">${p.overall}</td>
                 ${MTSM_DATA.SKILLS.map(s => `<td class="num">${p.skills[s]}</td>`).join('')}
                 <td>
                   <select onchange="MTSM_UI._setTraining('${p.id}', this.value)" style="font-size:12px;padding:2px 4px;">
