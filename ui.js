@@ -1334,6 +1334,10 @@ const MTSM_UI = (() => {
     const ycLevelName = MTSM_DATA.YOUTH_COACH_QUALITY.levels[ycQuality];
     const ycWage = MTSM_DATA.YOUTH_COACH_QUALITY.costs[ycQuality];
 
+    const yacQuality = ad.asstCoach || 0;
+    const yacLevelName = MTSM_DATA.ASST_COACH_QUALITY.levels[yacQuality];
+    const yacWage = MTSM_DATA.ASST_COACH_QUALITY.costs[yacQuality];
+
     return `
       <div class="panel-header">🌱 YOUTH ACADEMY — ${academy.length}/${acMaxCap} prospect${academy.length !== 1 ? 's' : ''}</div>
       <div class="text-muted mb-4" style="font-size:13px;">Young players with potential. Low stats now but they develop faster. New prospects arrive every 4 weeks (up to capacity). Sign or release to make room.</div>
@@ -1369,6 +1373,53 @@ const MTSM_UI = (() => {
               </button>
             ` : ''}
           </div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;">
+        <div class="staff-card" style="flex:1;min-width:300px;flex-direction:column;align-items:stretch;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <div>
+              <div class="role">Youth Assistant Coach</div>
+              <div class="quality">${yacLevelName}</div>
+              <div class="text-muted" style="font-size:12px;">${yacQuality > 0 ? `Wage: £${yacWage.toLocaleString()}/week — Auto-manages prospect training` : 'Hire to automatically manage prospect training focus'}</div>
+            </div>
+            <div class="btn-group">
+              <button class="btn btn-small" onclick="MTSM_UI._upgradeYouthAsstCoach()" ${yacQuality >= 4 ? 'disabled style="opacity:0.3"' : ''}>
+                ${yacQuality === 0 ? 'Hire' : 'Upgrade'}
+              </button>
+              ${yacQuality > 0 ? `
+                <button class="btn btn-small btn-danger" onclick="MTSM_UI._downgradeYouthAsstCoach()">
+                  ${yacQuality === 1 ? 'Dismiss' : 'Downgrade'}
+                </button>
+              ` : ''}
+            </div>
+          </div>
+          ${yacQuality > 0 ? `
+            <div style="border-top:1px solid var(--color-border);padding-top:8px;font-size:12px;">
+              <div class="text-muted" style="margin-bottom:6px;">
+                Choose two skills to cycle between for all prospects. When skill 1 reaches the target, training switches to skill 2 (and vice versa). Leave blank to auto-pick the two lowest skills per prospect.
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                <label style="font-size:11px;">Skill 1:
+                  <select onchange="MTSM_UI._setYouthAsstCoachConfig()" id="yac-sk1" style="font-size:11px;padding:2px;">
+                    <option value="">Auto</option>
+                    ${MTSM_DATA.SKILLS.map(s => `<option value="${s}" ${ad.asstTraining1 === s ? 'selected' : ''}>${s}</option>`).join('')}
+                  </select>
+                </label>
+                <label style="font-size:11px;">Skill 2:
+                  <select onchange="MTSM_UI._setYouthAsstCoachConfig()" id="yac-sk2" style="font-size:11px;padding:2px;">
+                    <option value="">Auto</option>
+                    ${MTSM_DATA.SKILLS.map(s => `<option value="${s}" ${ad.asstTraining2 === s ? 'selected' : ''}>${s}</option>`).join('')}
+                  </select>
+                </label>
+                <label style="font-size:11px;">Target:
+                  <input type="number" id="yac-target" min="1" max="99" value="${ad.asstTargetLevel || 99}"
+                    onchange="MTSM_UI._setYouthAsstCoachConfig()" style="width:45px;font-size:11px;padding:2px;">
+                </label>
+              </div>
+            </div>
+          ` : ''}
         </div>
       </div>
 
@@ -1476,6 +1527,47 @@ const MTSM_UI = (() => {
       state.youthAcademy[hpIdx][idx].training = skill || null;
     }
     renderGame('academy');
+  }
+
+  function _upgradeYouthAsstCoach() {
+    const state = MTSM_ENGINE.getState();
+    const result = MTSM_ENGINE.upgradeYouthAssistantCoach(state.currentPlayerIndex);
+    showNotification(result.msg, !result.success);
+    renderGame('academy');
+  }
+
+  function _downgradeYouthAsstCoach() {
+    const state = MTSM_ENGINE.getState();
+    const ad = state.youthAcademyData ? state.youthAcademyData[state.currentPlayerIndex] : null;
+    const currentName = ad ? MTSM_DATA.ASST_COACH_QUALITY.levels[ad.asstCoach || 0] : 'None';
+    const action = ad && (ad.asstCoach || 0) === 1 ? 'Dismiss' : 'Downgrade';
+
+    _showConfirmDialog(
+      `${action.toUpperCase()} YOUTH ASSISTANT COACH`,
+      `${action} your Youth Assistant Coach from <strong>${currentName}</strong>?`,
+      'This will reduce automatic training management for academy prospects.',
+      () => {
+        const result = MTSM_ENGINE.downgradeYouthAssistantCoach(state.currentPlayerIndex);
+        showNotification(result.msg, !result.success);
+        renderGame('academy');
+      },
+      '📉'
+    );
+  }
+
+  function _setYouthAsstCoachConfig() {
+    const state = MTSM_ENGINE.getState();
+    const sk1 = document.getElementById('yac-sk1');
+    const sk2 = document.getElementById('yac-sk2');
+    const target = document.getElementById('yac-target');
+    if (!sk1 || !sk2 || !target) return;
+    const result = MTSM_ENGINE.setYouthAssistantCoachConfig(
+      state.currentPlayerIndex,
+      sk1.value || null,
+      sk2.value || null,
+      parseInt(target.value) || 99
+    );
+    if (!result.success) showNotification(result.msg, true);
   }
 
   // ===== CUP =====
@@ -1710,6 +1802,12 @@ const MTSM_UI = (() => {
   // ===== STAFF =====
   function renderStaff() {
     const team = MTSM_ENGINE.getCurrentHumanTeam();
+    const state = MTSM_ENGINE.getState();
+    const hpIdx = state.currentPlayerIndex;
+    const ac = (state.assistantCoachData && state.assistantCoachData[hpIdx]) || { quality: 0, training1: null, training2: null, targetLevel: 99 };
+    const acQuality = ac.quality || 0;
+    const acLevelName = MTSM_DATA.ASST_COACH_QUALITY.levels[acQuality];
+    const acWage = MTSM_DATA.ASST_COACH_QUALITY.costs[acQuality];
 
     return `
       <div class="panel-header">👔 STAFF</div>
@@ -1734,8 +1832,55 @@ const MTSM_UI = (() => {
           </div>
         `;
       }).join('')}
+
+      <div class="staff-card" style="margin-top:12px;flex-direction:column;align-items:stretch;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <div>
+            <div class="role">Assistant Coach</div>
+            <div class="quality">${acLevelName}</div>
+            <div class="text-muted" style="font-size:12px;">${acQuality > 0 ? `Wage: £${acWage.toLocaleString()}/week — Auto-manages player training` : 'Hire to automatically manage player training focus'}</div>
+          </div>
+          <div class="btn-group">
+            <button class="btn btn-small" onclick="MTSM_UI._upgradeAsstCoach()" ${acQuality >= 4 ? 'disabled style="opacity:0.3"' : ''}>
+              ${acQuality === 0 ? 'Hire' : 'Upgrade'}
+            </button>
+            ${acQuality > 0 ? `
+              <button class="btn btn-small btn-danger" onclick="MTSM_UI._downgradeAsstCoach()">
+                ${acQuality === 1 ? 'Dismiss' : 'Downgrade'}
+              </button>
+            ` : ''}
+          </div>
+        </div>
+        ${acQuality > 0 ? `
+          <div style="border-top:1px solid var(--color-border);padding-top:8px;font-size:12px;">
+            <div class="text-muted" style="margin-bottom:6px;">
+              Choose two skills to cycle between. When skill 1 reaches the target level, training switches to skill 2 (and vice versa). Leave blank to auto-pick the two lowest skills per player.
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+              <label style="font-size:11px;">Skill 1:
+                <select onchange="MTSM_UI._setAsstCoachConfig()" id="ac-sk1" style="font-size:11px;padding:2px;">
+                  <option value="">Auto</option>
+                  ${MTSM_DATA.SKILLS.map(s => `<option value="${s}" ${ac.training1 === s ? 'selected' : ''}>${s}</option>`).join('')}
+                </select>
+              </label>
+              <label style="font-size:11px;">Skill 2:
+                <select onchange="MTSM_UI._setAsstCoachConfig()" id="ac-sk2" style="font-size:11px;padding:2px;">
+                  <option value="">Auto</option>
+                  ${MTSM_DATA.SKILLS.map(s => `<option value="${s}" ${ac.training2 === s ? 'selected' : ''}>${s}</option>`).join('')}
+                </select>
+              </label>
+              <label style="font-size:11px;">Target:
+                <input type="number" id="ac-target" min="1" max="99" value="${ac.targetLevel || 99}"
+                  onchange="MTSM_UI._setAsstCoachConfig()" style="width:45px;font-size:11px;padding:2px;">
+              </label>
+            </div>
+          </div>
+        ` : ''}
+      </div>
+
       <div class="mt-4 text-muted" style="font-size:13px;">
         <strong>Coach:</strong> Improves training effectiveness<br>
+        <strong>Assistant Coach:</strong> Auto-assigns and cycles player training between two skills<br>
         <strong>Scout:</strong> Finds better transfer targets<br>
         <strong>Physio:</strong> Speeds up injury recovery
       </div>
@@ -1767,6 +1912,47 @@ const MTSM_UI = (() => {
       },
       '📉'
     );
+  }
+
+  function _upgradeAsstCoach() {
+    const state = MTSM_ENGINE.getState();
+    const result = MTSM_ENGINE.upgradeAssistantCoach(state.currentPlayerIndex);
+    showNotification(result.msg, !result.success);
+    renderGame('staff');
+  }
+
+  function _downgradeAsstCoach() {
+    const state = MTSM_ENGINE.getState();
+    const ac = state.assistantCoachData ? state.assistantCoachData[state.currentPlayerIndex] : null;
+    const currentName = ac ? MTSM_DATA.ASST_COACH_QUALITY.levels[ac.quality] : 'None';
+    const action = ac && ac.quality === 1 ? 'Dismiss' : 'Downgrade';
+
+    _showConfirmDialog(
+      `${action.toUpperCase()} ASSISTANT COACH`,
+      `${action} your Assistant Coach from <strong>${currentName}</strong>?`,
+      'This will reduce automatic training management for your players.',
+      () => {
+        const result = MTSM_ENGINE.downgradeAssistantCoach(state.currentPlayerIndex);
+        showNotification(result.msg, !result.success);
+        renderGame('staff');
+      },
+      '📉'
+    );
+  }
+
+  function _setAsstCoachConfig() {
+    const state = MTSM_ENGINE.getState();
+    const sk1 = document.getElementById('ac-sk1');
+    const sk2 = document.getElementById('ac-sk2');
+    const target = document.getElementById('ac-target');
+    if (!sk1 || !sk2 || !target) return;
+    const result = MTSM_ENGINE.setAssistantCoachConfig(
+      state.currentPlayerIndex,
+      sk1.value || null,
+      sk2.value || null,
+      parseInt(target.value) || 99
+    );
+    if (!result.success) showNotification(result.msg, true);
   }
 
   // ===== GROUND =====
@@ -2709,6 +2895,12 @@ const MTSM_UI = (() => {
     _upgradeYouthCoach,
     _downgradeYouthCoach,
     _setYouthTraining,
+    _upgradeAsstCoach,
+    _downgradeAsstCoach,
+    _setAsstCoachConfig,
+    _upgradeYouthAsstCoach,
+    _downgradeYouthAsstCoach,
+    _setYouthAsstCoachConfig,
     _submitBid,
     _showNegotiationModal,
     _showCounterOfferModal,
