@@ -410,8 +410,8 @@ const MTSM_UI = (() => {
           <button class="icon-btn ${subView === 'history' ? 'active' : ''}" onclick="MTSM_UI.renderGame('history')">
             <span class="icon">📜</span>History
           </button>
-          <button class="icon-btn ${subView === 'career' ? 'active' : ''}" onclick="MTSM_UI.renderGame('career')" style="${(state.clubOffers && state.clubOffers[state.currentPlayerIndex] && state.clubOffers[state.currentPlayerIndex].length > 0) ? 'border-color:var(--color-accent);' : ''}">
-            <span class="icon">🏢</span>Career${(state.clubOffers && state.clubOffers[state.currentPlayerIndex] && state.clubOffers[state.currentPlayerIndex].length > 0) ? ' <span style="color:var(--color-accent);font-size:10px;">(' + state.clubOffers[state.currentPlayerIndex].length + ')</span>' : ''}
+          <button class="icon-btn ${subView === 'career' ? 'active' : ''}" onclick="MTSM_UI.renderGame('career')" style="${(state.clubOffers && state.clubOffers[state.currentPlayerIndex] && state.clubOffers[state.currentPlayerIndex].offers && state.clubOffers[state.currentPlayerIndex].offers.length > 0) ? 'border-color:var(--color-accent);' : ''}">
+            <span class="icon">🏢</span>Career${(state.clubOffers && state.clubOffers[state.currentPlayerIndex] && state.clubOffers[state.currentPlayerIndex].offers && state.clubOffers[state.currentPlayerIndex].offers.length > 0) ? ' <span style="color:var(--color-accent);font-size:10px;">(' + state.clubOffers[state.currentPlayerIndex].offers.length + ')</span>' : ''}
           </button>
           <button class="icon-btn" onclick="MTSM_UI._playMatchDay()" style="border-color:var(--color-accent);color:var(--color-accent);">
             <span class="icon">⚽</span>Play
@@ -2132,8 +2132,9 @@ const MTSM_UI = (() => {
     const hp = state.humanPlayers[state.currentPlayerIndex];
     const team = MTSM_ENGINE.getCurrentHumanTeam();
 
-    // Approach offers from other clubs (generated during season)
-    const approachOffers = (state.clubOffers && state.clubOffers[state.currentPlayerIndex]) || [];
+    // Approach offers from other clubs (generated during season, expire after 1 week)
+    const approachData = state.clubOffers && state.clubOffers[state.currentPlayerIndex];
+    const approachOffers = approachData ? approachData.offers : [];
 
     let html = `
       <div class="panel-header">🏢 CAREER MANAGEMENT</div>
@@ -2149,6 +2150,7 @@ const MTSM_UI = (() => {
         <div class="panel-header" style="font-size:12px;">📬 CLUB APPROACHES (${approachOffers.length})</div>
         <div style="font-size:12px;color:var(--color-text-muted);margin:8px 0;">
           These clubs have approached you to become their manager. Accept to leave your current club, or decline.
+          <span style="color:var(--color-accent);">⏳ Offers expire after this week!</span>
         </div>
         ${_renderOfferCards(approachOffers, 'MTSM_UI._acceptApproach')}
         <div class="mt-4">
@@ -2200,7 +2202,8 @@ const MTSM_UI = (() => {
   function _acceptApproach(offerIdx) {
     const state = MTSM_ENGINE.getState();
     const team = MTSM_ENGINE.getCurrentHumanTeam();
-    const offers = (state.clubOffers && state.clubOffers[state.currentPlayerIndex]) || [];
+    const approachData = state.clubOffers && state.clubOffers[state.currentPlayerIndex];
+    const offers = approachData ? approachData.offers : [];
     if (offerIdx < 0 || offerIdx >= offers.length) return;
     const offer = offers[offerIdx];
     if (!confirm(`Leave ${team.name} to manage ${offer.teamName} (${offer.divisionName})? This is immediate.`)) return;
