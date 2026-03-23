@@ -59,6 +59,11 @@ const MTSM_DATA = (() => {
   const STAFF_QUALITIES = ['Useless','Poor','Average','Good','Excellent'];
   const STAFF_COSTS = [500, 1500, 3000, 6000, 12000]; // weekly wage
 
+  // Division-based scaling constants (indexed by divisionTier: 0=Div1 .. 3=Div4)
+  const DIV_VALUE_MULT = [1.5, 1.0, 0.5, 0.25];     // transfer value multiplier
+  const DIV_WAGE_COEFF = [45, 30, 20, 12];           // wage = overall * coeff + rand
+  const DIV_WAGE_RAND  = [400, 300, 200, 150];       // wage random component max
+
   const ACADEMY_QUALITY = {
     levels: ['Basic','Improved','Advanced','Elite','World Class'],
     costs: [0, 40000, 120000, 300000, 600000],
@@ -123,13 +128,13 @@ const MTSM_DATA = (() => {
     }
     const overall = Math.round(Object.values(skills).reduce((a, b) => a + b, 0) / SKILLS.length);
     // Wage scales by division: top-flight players earn far more than lower league
-    const wageCoeff = [45, 30, 20, 12][divisionTier] || 20;
-    const wageRand = [400, 300, 200, 150][divisionTier] || 200;
+    const wageCoeff = DIV_WAGE_COEFF[divisionTier] || 20;
+    const wageRand = DIV_WAGE_RAND[divisionTier] || 200;
     const wage = Math.round((overall * wageCoeff + randInt(0, wageRand)) / 10) * 10;
     // Age multiplier: young players (17-22) worth more, older (31+) worth less
     const ageMult = age <= 22 ? 1.3 - (age - 17) * 0.04 : age <= 29 ? 1.0 : 1.0 - (age - 29) * 0.07;
     // Division multiplier: higher divisions vastly increase value
-    const divMult = [1.5, 1.0, 0.5, 0.25][divisionTier] || 1.0;
+    const divMult = DIV_VALUE_MULT[divisionTier] || 1.0;
     const value = Math.round(overall * 10000 * ageMult * divMult);
 
     return {
@@ -284,6 +289,9 @@ const MTSM_DATA = (() => {
     STAFF_ROLES,
     STAFF_QUALITIES,
     STAFF_COSTS,
+    DIV_VALUE_MULT,
+    DIV_WAGE_COEFF,
+    DIV_WAGE_RAND,
     ACADEMY_QUALITY,
     YOUTH_COACH_QUALITY,
     GROUND_UPGRADES,

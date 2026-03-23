@@ -611,7 +611,7 @@ const MTSM_ENGINE = (() => {
             );
             // Recalculate transfer value based on new overall
             const ageMult = player.age <= 22 ? 1.3 - (player.age - 17) * 0.04 : player.age <= 29 ? 1.0 : 1.0 - (player.age - 29) * 0.07;
-            const divMult = [1.5, 1.2, 1.0, 0.8][dIdx] || 1.0;
+            const divMult = MTSM_DATA.DIV_VALUE_MULT[dIdx] || 1.0;
             const youthMult = player.isYouth ? 0.3 : 1.0;
             player.value = Math.round(player.overall * 10000 * ageMult * divMult * youthMult);
             // Log training news for human teams
@@ -929,11 +929,14 @@ const MTSM_ENGINE = (() => {
             }
             delete player.isYouth;
           }
-          // Recalculate transfer value each season (after youth graduation so multiplier is correct)
+          // Recalculate transfer value and wage each season (after youth graduation so multiplier is correct)
           const ageMult = player.age <= 22 ? 1.3 - (player.age - 17) * 0.04 : player.age <= 29 ? 1.0 : 1.0 - (player.age - 29) * 0.07;
-          const divMult = [1.5, 1.2, 1.0, 0.8][dIdx] || 1.0;
+          const divMult = MTSM_DATA.DIV_VALUE_MULT[dIdx] || 1.0;
           const youthMult = player.isYouth ? 0.3 : 1.0;
           player.value = Math.round(player.overall * 10000 * ageMult * divMult * youthMult);
+          // Recalculate wage to reflect current division (promotion/relegation adjusts pay)
+          const wageCoeff = MTSM_DATA.DIV_WAGE_COEFF[dIdx] || 20;
+          player.wage = Math.round((player.overall * wageCoeff) / 10) * 10;
         }
         // Auto-retire very old players
         const retired = team.players.filter(p => p.age >= 37);
