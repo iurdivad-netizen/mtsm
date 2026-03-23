@@ -292,12 +292,31 @@ const MTSM_UI = (() => {
     const state = MTSM_ENGINE.getState();
     const team = MTSM_ENGINE.getCurrentHumanTeam();
 
+    const hp = state.humanPlayers[state.currentPlayerIndex];
+
+    // Manager is between clubs (viewing offers)
+    if (!team && hp && hp._lookingForClub) {
+      app().innerHTML = `
+        <div class="game-screen">
+          <div class="game-header">
+            <div>
+              <div class="team-name">Free Agent</div>
+              <div style="font-size:12px;color:var(--color-text-muted);">Manager: ${hp.name} • Seeking new club</div>
+            </div>
+          </div>
+          <div id="notification" class="notification hidden"></div>
+          <div id="game-content" class="panel mt-4">
+            ${renderCareer()}
+          </div>
+        </div>
+      `;
+      return;
+    }
+
     if (!team) {
       renderGameOver();
       return;
     }
-
-    const hp = state.humanPlayers[state.currentPlayerIndex];
 
     app().innerHTML = `
       <div class="game-screen">
@@ -391,6 +410,9 @@ const MTSM_UI = (() => {
           <button class="icon-btn ${subView === 'history' ? 'active' : ''}" onclick="MTSM_UI.renderGame('history')">
             <span class="icon">📜</span>History
           </button>
+          <button class="icon-btn ${subView === 'career' ? 'active' : ''}" onclick="MTSM_UI.renderGame('career')">
+            <span class="icon">🏢</span>Career
+          </button>
           <button class="icon-btn" onclick="MTSM_UI._playMatchDay()" style="border-color:var(--color-accent);color:var(--color-accent);">
             <span class="icon">⚽</span>Play
           </button>
@@ -421,6 +443,7 @@ const MTSM_UI = (() => {
       case 'results': return renderResults();
       case 'news': return renderNewsBoard();
       case 'history': return renderClubHistory();
+      case 'career': return renderCareer();
       default: return renderMenu();
     }
   }
@@ -2074,6 +2097,200 @@ const MTSM_UI = (() => {
     app().innerHTML = html;
   }
 
+  // ===== CAREER (RESIGN / CLUB OFFERS) =====
+  let _pendingOffers = null;
+
+  function renderCareer() {
+    const state = MTSM_ENGINE.getState();
+    const hp = state.humanPlayers[state.currentPlayerIndex];
+    const team = MTSM_ENGINE.getCurrentHumanTeam();
+
+    let html = `
+      <div class="panel-header">🏢 CAREER MANAGEMENT</div>
+      <div class="mt-4" style="padding:8px;">
+        <div style="margin-bottom:16px;color:var(--color-text-muted);font-size:13px;">
+          Current club: <span style="color:var(--color-text-bright);">${team.name}</span> (Division ${hp.division + 1})
+        </div>
+
+        <div class="panel-header" style="font-size:12px;">RESIGN FROM CLUB</div>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">
+          <button class="btn" onclick="MTSM_UI._confirmResign('retire')" style="text-align:left;">
+            🚪 RETIRE — End your management career
+          </button>
+          <button class="btn" onclick="MTSM_UI._confirmResign('restart')" style="text-align:left;">
+            🔄 START OVER — Take a random Division 4 club
+          </button>
+          <button class="btn" onclick="MTSM_UI._requestOffers()" style="text-align:left;">
+            📨 GET OFFERS — Resign and receive 3 club offers based on performance
+          </button>
+        </div>
+    `;
+
+    // Show pending offers if any
+    if (_pendingOffers && _pendingOffers.length > 0) {
+      html += `
+        <div class="panel-header mt-4" style="font-size:12px;">📬 CLUB OFFERS</div>
+        <div style="font-size:12px;color:var(--color-text-muted);margin:8px 0;">
+          These clubs want you as their new manager. Choose one to accept.
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+      `;
+      for (let i = 0; i < _pendingOffers.length; i++) {
+        const o = _pendingOffers[i];
+        html += `
+          <div class="stat-card" style="cursor:pointer;border:1px solid var(--color-border);" onclick="MTSM_UI._acceptOffer(${i})">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div>
+                <span style="color:var(--color-text-bright);font-size:14px;">${o.teamName}</span>
+                <span style="color:var(--color-accent);font-size:12px;margin-left:8px;">${o.divisionName}</span>
+              </div>
+            </div>
+            <div style="display:flex;gap:16px;margin-top:6px;font-size:12px;color:var(--color-text-muted);">
+              <span>Balance: <span class="${o.balance < 0 ? 'text-danger' : ''}" style="color:var(--color-text-bright);">${formatMoney(o.balance)}</span></span>
+              <span>Squad: <span style="color:var(--color-text-bright);">${o.squadSize}</span></span>
+              <span>Avg OVR: <span style="color:var(--color-text-bright);">${o.avgOverall}</span></span>
+            </div>
+            <div style="margin-top:6px;">
+              <button class="btn btn-small btn-accent">ACCEPT OFFER</button>
+            </div>
+          </div>
+        `;
+      }
+      html += `
+        </div>
+        <div class="mt-4">
+          <button class="btn btn-small" onclick="MTSM_UI._cancelOffers()">✕ DECLINE ALL OFFERS</button>
+        </div>
+      `;
+    }
+
+    html += `</div>`;
+    return html;
+  }
+
+  function _confirmResign(option) {
+    const hp = MTSM_ENGINE.getState().humanPlayers[MTSM_ENGINE.getState().currentPlayerIndex];
+    const team = MTSM_ENGINE.getCurrentHumanTeam();
+    let msg = '';
+    if (option === 'retire') {
+      msg = `Are you sure you want to RETIRE from management? ${hp.name} will permanently leave ${team.name}. This cannot be undone.`;
+    } else if (option === 'restart') {
+      msg = `Are you sure you want to resign from ${team.name} and start over with a random Division 4 club?`;
+    }
+    if (confirm(msg)) {
+      _pendingOffers = null;
+      const result = MTSM_ENGINE.resignManager(MTSM_ENGINE.getState().currentPlayerIndex, option);
+      if (result.success) {
+        showNotification(result.msg);
+        if (result.retired) {
+          // Check if any human players remain
+          const remaining = MTSM_ENGINE.getState().humanPlayers.filter(h => !h.sacked);
+          if (remaining.length === 0) {
+            renderGameOver();
+          } else {
+            MTSM_ENGINE.getState().currentPlayerIndex = MTSM_ENGINE.getState().humanPlayers.findIndex(h => !h.sacked);
+            renderGame();
+          }
+        } else {
+          renderGame();
+        }
+      } else {
+        showNotification(result.msg, true);
+      }
+    }
+  }
+
+  function _requestOffers() {
+    const state = MTSM_ENGINE.getState();
+    const hp = state.humanPlayers[state.currentPlayerIndex];
+    const team = MTSM_ENGINE.getCurrentHumanTeam();
+    if (!confirm(`Resign from ${team.name} and request club offers? You will leave your current club immediately.`)) return;
+
+    // Leave current club first
+    const oldTeam = state.divisions[hp.division].teams[hp.teamIndex];
+    const oldTeamName = oldTeam.name;
+
+    // Generate offers before leaving (so performance is still calculated)
+    _pendingOffers = MTSM_ENGINE.generateClubOffers(state.currentPlayerIndex);
+
+    // Now leave the club
+    oldTeam.isHuman = false;
+    oldTeam.humanPlayerIndex = -1;
+    delete oldTeam.humanName;
+
+    // Mark as "looking" — not sacked, but temporarily without a club
+    hp._lookingForClub = true;
+
+    if (_pendingOffers.length === 0) {
+      // No offers — force restart in div 4
+      hp._lookingForClub = false;
+      const result = MTSM_ENGINE.resignManager(state.currentPlayerIndex, 'restart');
+      showNotification('No clubs made an offer. ' + result.msg, true);
+      renderGame();
+      return;
+    }
+
+    showNotification(`You have resigned from ${oldTeamName}. ${_pendingOffers.length} club offers received!`);
+    renderGame('career');
+  }
+
+  function _acceptOffer(offerIdx) {
+    if (!_pendingOffers || offerIdx < 0 || offerIdx >= _pendingOffers.length) return;
+    const offer = _pendingOffers[offerIdx];
+    const state = MTSM_ENGINE.getState();
+    const hp = state.humanPlayers[state.currentPlayerIndex];
+
+    // Verify team is still available
+    const targetTeam = state.divisions[offer.division].teams[offer.teamIndex];
+    if (!targetTeam || targetTeam.isHuman) {
+      showNotification('This club is no longer available.', true);
+      return;
+    }
+
+    // Join new club
+    targetTeam.isHuman = true;
+    targetTeam.humanPlayerIndex = state.currentPlayerIndex;
+    targetTeam.humanName = hp.name;
+    hp.division = offer.division;
+    hp.teamIndex = offer.teamIndex;
+    hp.boardConfidence = 50;
+    hp._lookingForClub = false;
+
+    _pendingOffers = null;
+    showNotification(`Welcome to ${targetTeam.name}! You are now managing in Division ${offer.division + 1}.`);
+    renderGame();
+  }
+
+  function _cancelOffers() {
+    const state = MTSM_ENGINE.getState();
+    const hp = state.humanPlayers[state.currentPlayerIndex];
+
+    if (!confirm('Decline all offers? You will be assigned a random Division 4 club.')) return;
+
+    _pendingOffers = null;
+    hp._lookingForClub = false;
+
+    // Find a random AI team in Division 4
+    const div4Teams = state.divisions[3].teams.filter(t => !t.isHuman);
+    if (div4Teams.length === 0) {
+      hp.sacked = true;
+      showNotification('No clubs available. Career over.', true);
+      renderGameOver();
+      return;
+    }
+    const newTeam = div4Teams[Math.floor(Math.random() * div4Teams.length)];
+    const newTeamIdx = state.divisions[3].teams.indexOf(newTeam);
+
+    newTeam.isHuman = true;
+    newTeam.humanPlayerIndex = state.currentPlayerIndex;
+    newTeam.humanName = hp.name;
+    hp.division = 3;
+    hp.teamIndex = newTeamIdx;
+
+    showNotification(`You have taken charge of ${newTeam.name} in Division 4.`);
+    renderGame();
+  }
+
   // ===== GAME OVER =====
   function renderGameOver() {
     app().innerHTML = `
@@ -2204,7 +2421,11 @@ const MTSM_UI = (() => {
     _toggleXI,
     _autoSelectXI,
     _clearXI,
-    _confirmXI
+    _confirmXI,
+    _confirmResign,
+    _requestOffers,
+    _acceptOffer,
+    _cancelOffers
   };
 
 })();
