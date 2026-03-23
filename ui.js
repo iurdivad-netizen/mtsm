@@ -1398,22 +1398,10 @@ const MTSM_UI = (() => {
           ${yacQuality > 0 ? `
             <div style="border-top:1px solid var(--color-border);padding-top:8px;font-size:12px;">
               <div class="text-muted" style="margin-bottom:6px;">
-                Choose two skills to cycle between for all prospects. When skill 1 reaches the target, training switches to skill 2 (and vice versa). Leave blank to auto-pick the two lowest skills per prospect.
+                Automatically trains each prospect's two weakest skills individually. When a skill reaches the target level, switches to that prospect's next weakest skill.
               </div>
               <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-                <label style="font-size:11px;">Skill 1:
-                  <select onchange="MTSM_UI._setYouthAsstCoachConfig()" id="yac-sk1" style="font-size:11px;padding:2px;">
-                    <option value="">Auto</option>
-                    ${MTSM_DATA.SKILLS.map(s => `<option value="${s}" ${ad.asstTraining1 === s ? 'selected' : ''}>${s}</option>`).join('')}
-                  </select>
-                </label>
-                <label style="font-size:11px;">Skill 2:
-                  <select onchange="MTSM_UI._setYouthAsstCoachConfig()" id="yac-sk2" style="font-size:11px;padding:2px;">
-                    <option value="">Auto</option>
-                    ${MTSM_DATA.SKILLS.map(s => `<option value="${s}" ${ad.asstTraining2 === s ? 'selected' : ''}>${s}</option>`).join('')}
-                  </select>
-                </label>
-                <label style="font-size:11px;">Target:
+                <label style="font-size:11px;">Target level:
                   <input type="number" id="yac-target" min="1" max="99" value="${ad.asstTargetLevel || 99}"
                     onchange="MTSM_UI._setYouthAsstCoachConfig()" style="width:45px;font-size:11px;padding:2px;">
                 </label>
@@ -1557,14 +1545,10 @@ const MTSM_UI = (() => {
 
   function _setYouthAsstCoachConfig() {
     const state = MTSM_ENGINE.getState();
-    const sk1 = document.getElementById('yac-sk1');
-    const sk2 = document.getElementById('yac-sk2');
     const target = document.getElementById('yac-target');
-    if (!sk1 || !sk2 || !target) return;
+    if (!target) return;
     const result = MTSM_ENGINE.setYouthAssistantCoachConfig(
       state.currentPlayerIndex,
-      sk1.value || null,
-      sk2.value || null,
       parseInt(target.value) || 99
     );
     if (!result.success) showNotification(result.msg, true);
@@ -1804,7 +1788,7 @@ const MTSM_UI = (() => {
     const team = MTSM_ENGINE.getCurrentHumanTeam();
     const state = MTSM_ENGINE.getState();
     const hpIdx = state.currentPlayerIndex;
-    const ac = (state.assistantCoachData && state.assistantCoachData[hpIdx]) || { quality: 0, training1: null, training2: null, targetLevel: 99 };
+    const ac = (state.assistantCoachData && state.assistantCoachData[hpIdx]) || { quality: 0, targetLevel: 99 };
     const acQuality = ac.quality || 0;
     const acLevelName = MTSM_DATA.ASST_COACH_QUALITY.levels[acQuality];
     const acWage = MTSM_DATA.ASST_COACH_QUALITY.costs[acQuality];
@@ -1854,22 +1838,10 @@ const MTSM_UI = (() => {
         ${acQuality > 0 ? `
           <div style="border-top:1px solid var(--color-border);padding-top:8px;font-size:12px;">
             <div class="text-muted" style="margin-bottom:6px;">
-              Choose two skills to cycle between. When skill 1 reaches the target level, training switches to skill 2 (and vice versa). Leave blank to auto-pick the two lowest skills per player.
+              Automatically trains each player's two weakest skills individually. When a skill reaches the target level, switches to that player's next weakest skill.
             </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-              <label style="font-size:11px;">Skill 1:
-                <select onchange="MTSM_UI._setAsstCoachConfig()" id="ac-sk1" style="font-size:11px;padding:2px;">
-                  <option value="">Auto</option>
-                  ${MTSM_DATA.SKILLS.map(s => `<option value="${s}" ${ac.training1 === s ? 'selected' : ''}>${s}</option>`).join('')}
-                </select>
-              </label>
-              <label style="font-size:11px;">Skill 2:
-                <select onchange="MTSM_UI._setAsstCoachConfig()" id="ac-sk2" style="font-size:11px;padding:2px;">
-                  <option value="">Auto</option>
-                  ${MTSM_DATA.SKILLS.map(s => `<option value="${s}" ${ac.training2 === s ? 'selected' : ''}>${s}</option>`).join('')}
-                </select>
-              </label>
-              <label style="font-size:11px;">Target:
+              <label style="font-size:11px;">Target level:
                 <input type="number" id="ac-target" min="1" max="99" value="${ac.targetLevel || 99}"
                   onchange="MTSM_UI._setAsstCoachConfig()" style="width:45px;font-size:11px;padding:2px;">
               </label>
@@ -1880,7 +1852,7 @@ const MTSM_UI = (() => {
 
       <div class="mt-4 text-muted" style="font-size:13px;">
         <strong>Coach:</strong> Improves training effectiveness<br>
-        <strong>Assistant Coach:</strong> Auto-assigns and cycles player training between two skills<br>
+        <strong>Assistant Coach:</strong> Auto-trains each player's weakest skills individually<br>
         <strong>Scout:</strong> Finds better transfer targets<br>
         <strong>Physio:</strong> Speeds up injury recovery
       </div>
@@ -1942,14 +1914,10 @@ const MTSM_UI = (() => {
 
   function _setAsstCoachConfig() {
     const state = MTSM_ENGINE.getState();
-    const sk1 = document.getElementById('ac-sk1');
-    const sk2 = document.getElementById('ac-sk2');
     const target = document.getElementById('ac-target');
-    if (!sk1 || !sk2 || !target) return;
+    if (!target) return;
     const result = MTSM_ENGINE.setAssistantCoachConfig(
       state.currentPlayerIndex,
-      sk1.value || null,
-      sk2.value || null,
       parseInt(target.value) || 99
     );
     if (!result.success) showNotification(result.msg, true);
