@@ -696,7 +696,7 @@ const MTSM_ENGINE = (() => {
   function buyPlayer(playerId, teamObj, bidAmount) {
     const idx = state.transferPool.findIndex(p => p.id === playerId);
     if (idx === -1) return { success: false, msg: 'Player no longer available.' };
-    if (teamObj.players.length >= 16) return { success: false, msg: 'Squad full (max 16 players).' };
+    if (teamObj.players.length >= 25) return { success: false, msg: 'Squad full (max 25 players).' };
 
     const player = state.transferPool[idx];
     const askingPrice = player.askingPrice || player.value;
@@ -1537,7 +1537,7 @@ const MTSM_ENGINE = (() => {
 
     const hp = state.humanPlayers[hpIdx];
     const team = state.divisions[hp.division].teams[hp.teamIndex];
-    if (team.players.length >= 16) return { success: false, msg: 'Squad full (max 16 players).' };
+    if (team.players.length >= 25) return { success: false, msg: 'Squad full (max 25 players).' };
 
     const player = academy[playerIdx];
     const signingFee = player.value;
