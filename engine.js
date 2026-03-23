@@ -510,6 +510,15 @@ const MTSM_ENGINE = (() => {
       }
     }
 
+    // Expire club approach offers after 1 week
+    if (state.clubOffers) {
+      for (const idx of Object.keys(state.clubOffers)) {
+        if (state.clubOffers[idx] && state.week - state.clubOffers[idx].week >= 1) {
+          delete state.clubOffers[idx];
+        }
+      }
+    }
+
     // Periodic club approach offers (every 6 weeks, starting week 6)
     if (state.week >= 6 && state.week % 6 === 0) {
       if (!state.clubOffers) state.clubOffers = {};
@@ -525,7 +534,7 @@ const MTSM_ENGINE = (() => {
           // Filter: only keep offers from equal or higher divisions (clubs poach upward)
           const validOffers = offers.filter(o => o.division <= hp.division);
           if (validOffers.length > 0) {
-            state.clubOffers[i] = validOffers;
+            state.clubOffers[i] = { week: state.week, offers: validOffers };
             const bestDiv = Math.min(...validOffers.map(o => o.division));
             pushNews({
               type: 'APPROACH',
@@ -1801,7 +1810,7 @@ const MTSM_ENGINE = (() => {
 
   function acceptApproachOffer(hpIdx, offerIdx) {
     if (!state.clubOffers || !state.clubOffers[hpIdx]) return { success: false, msg: 'No approach offers.' };
-    const offers = state.clubOffers[hpIdx];
+    const offers = state.clubOffers[hpIdx].offers;
     if (offerIdx < 0 || offerIdx >= offers.length) return { success: false, msg: 'Invalid offer.' };
     const offer = offers[offerIdx];
     const result = acceptClubOffer(hpIdx, offer);
