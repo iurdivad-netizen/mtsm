@@ -115,7 +115,8 @@ const MTSM_ENGINE = (() => {
       youthAcademy,
       youthAcademyData,
       clubHistory,
-      matchLog
+      matchLog,
+      clubOffers: {}
     };
 
     return state;
@@ -506,6 +507,32 @@ const MTSM_ENGINE = (() => {
           type: 'SACKED',
           text: `${hp.name} has been SACKED as manager of ${team.name} due to massive debt!`
         });
+      }
+    }
+
+    // Periodic club approach offers (every 6 weeks, starting week 6)
+    if (state.week >= 6 && state.week % 6 === 0) {
+      if (!state.clubOffers) state.clubOffers = {};
+      for (let i = 0; i < state.humanPlayers.length; i++) {
+        const hp = state.humanPlayers[i];
+        if (hp.sacked || hp._lookingForClub) continue;
+        // Only generate if manager has decent performance (score > 30)
+        const perfScore = _getManagerPerformanceScore(i);
+        // Chance of getting approached: higher perf = higher chance
+        const approachChance = Math.min(0.8, perfScore / 100);
+        if (Math.random() < approachChance) {
+          const offers = generateClubOffers(i);
+          // Filter: only keep offers from equal or higher divisions (clubs poach upward)
+          const validOffers = offers.filter(o => o.division <= hp.division);
+          if (validOffers.length > 0) {
+            state.clubOffers[i] = validOffers;
+            const bestDiv = Math.min(...validOffers.map(o => o.division));
+            pushNews({
+              type: 'APPROACH',
+              text: `${validOffers.length} club${validOffers.length > 1 ? 's have' : ' has'} approached ${hp.name} with management offers! (Best: Division ${bestDiv + 1})`
+            });
+          }
+        }
       }
     }
 
@@ -1772,6 +1799,23 @@ const MTSM_ENGINE = (() => {
     return { success: false, msg: 'Invalid option.' };
   }
 
+  function acceptApproachOffer(hpIdx, offerIdx) {
+    if (!state.clubOffers || !state.clubOffers[hpIdx]) return { success: false, msg: 'No approach offers.' };
+    const offers = state.clubOffers[hpIdx];
+    if (offerIdx < 0 || offerIdx >= offers.length) return { success: false, msg: 'Invalid offer.' };
+    const offer = offers[offerIdx];
+    const result = acceptClubOffer(hpIdx, offer);
+    if (result.success) {
+      delete state.clubOffers[hpIdx];
+    }
+    return result;
+  }
+
+  function declineApproachOffers(hpIdx) {
+    if (state.clubOffers) delete state.clubOffers[hpIdx];
+    return { success: true, msg: 'All approach offers declined.' };
+  }
+
   function acceptClubOffer(hpIdx, offer) {
     const hp = state.humanPlayers[hpIdx];
     if (!hp || hp.sacked) return { success: false, msg: 'No active manager.' };
@@ -1821,6 +1865,7 @@ const MTSM_ENGINE = (() => {
     if (!savedState.matchLog) savedState.matchLog = {};
     if (!savedState.weeklyFinances) savedState.weeklyFinances = {};
     if (!savedState.youthAcademyData) savedState.youthAcademyData = {};
+    if (!savedState.clubOffers) savedState.clubOffers = {};
     state = savedState;
     return true;
   }
@@ -1854,6 +1899,8 @@ const MTSM_ENGINE = (() => {
     generateClubOffers,
     resignManager,
     acceptClubOffer,
+    acceptApproachOffer,
+    declineApproachOffers,
     FORMATIONS,
     CUP_PRIZE_MONEY,
     NATIONAL_CUP_PRIZE_MONEY,
