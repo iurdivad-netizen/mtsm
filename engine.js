@@ -77,9 +77,7 @@ const MTSM_ENGINE = (() => {
         youthAcademyData[i] = {
           quality: 0, youthCoach: 0,
           asstCoach: 0,           // youth assistant coach quality (0=None, 1-4)
-          asstTraining1: null,    // first skill
-          asstTraining2: null,    // second skill
-          asstTargetLevel: 99    // threshold to switch
+          asstTargetLevel: 99    // threshold to switch to next lowest skill
         };
         const prospectCount = MTSM_DATA.ACADEMY_QUALITY.prospectCount[0];
         const skillBonus = MTSM_DATA.ACADEMY_QUALITY.baseSkillBonus[0];
@@ -96,9 +94,7 @@ const MTSM_ENGINE = (() => {
       matchLog[i] = [];
       assistantCoachData[i] = {
         quality: 0,          // 0=None, 1-4 = tiers
-        training1: null,     // first skill to train (or null for auto)
-        training2: null,     // second skill to switch to
-        targetLevel: 99      // switch when training1 reaches this
+        targetLevel: 99      // switch threshold: when lowest skill reaches this, move to next lowest
       };
     }
 
@@ -473,7 +469,7 @@ const MTSM_ENGINE = (() => {
       }
     }
 
-    // Youth assistant coach: auto-assign training for academy prospects
+    // Youth assistant coach: auto-assign training for academy prospects (per-player)
     if (state.options.youthAcademy && state.youthAcademy && state.youthAcademyData) {
       for (let i = 0; i < state.humanPlayers.length; i++) {
         if (state.humanPlayers[i].sacked) continue;
@@ -481,23 +477,17 @@ const MTSM_ENGINE = (() => {
         if (!ad || (ad.asstCoach || 0) <= 0) continue;
         const academy = state.youthAcademy[i];
         if (!academy) continue;
+        const target = ad.asstTargetLevel || 99;
         for (const player of academy) {
-          let sk1 = ad.asstTraining1;
-          let sk2 = ad.asstTraining2;
-          const target = ad.asstTargetLevel || 99;
-          if (!sk1 && !sk2) {
-            const sorted = MTSM_DATA.SKILLS.slice().sort((a, b) => player.skills[a] - player.skills[b]);
-            sk1 = sorted[0]; sk2 = sorted[1];
-          } else if (!sk1) {
-            sk1 = MTSM_DATA.SKILLS.filter(s => s !== sk2).sort((a, b) => player.skills[a] - player.skills[b])[0];
-          } else if (!sk2) {
-            sk2 = MTSM_DATA.SKILLS.filter(s => s !== sk1).sort((a, b) => player.skills[a] - player.skills[b])[0];
-          }
+          // Always pick the two lowest skills for THIS specific prospect
+          const sorted = MTSM_DATA.SKILLS.slice().sort((a, b) => player.skills[a] - player.skills[b]);
+          const sk1 = sorted[0];
+          const sk2 = sorted[1];
           if (player.training === sk1 && player.skills[sk1] >= target) {
             player.training = sk2;
           } else if (player.training === sk2 && player.skills[sk2] >= target) {
             player.training = sk1;
-          } else if (!player.training) {
+          } else if (!player.training || (player.training !== sk1 && player.training !== sk2)) {
             player.training = player.skills[sk1] <= player.skills[sk2] ? sk1 : sk2;
           }
           if (player.skills[sk1] >= target && player.skills[sk2] >= target) {
@@ -644,6 +634,7 @@ const MTSM_ENGINE = (() => {
   }
 
   // Assistant coach: auto-assign training for players on human teams
+  // Each player gets their own two skills based on their individual weakest stats
   function applyAssistantCoachLogic() {
     if (!state.assistantCoachData) return;
     for (let i = 0; i < state.humanPlayers.length; i++) {
@@ -652,34 +643,23 @@ const MTSM_ENGINE = (() => {
       const ac = state.assistantCoachData[i];
       if (!ac || ac.quality <= 0) continue;
       const team = state.divisions[hp.division].teams[hp.teamIndex];
+      const target = ac.targetLevel || 99;
       for (const player of team.players) {
         if (player.injured > 0) continue;
-        // Determine the two skills this player should cycle between
-        let sk1 = ac.training1;
-        let sk2 = ac.training2;
-        const target = ac.targetLevel || 99;
-        // If no skills chosen, auto-pick the two lowest skills
-        if (!sk1 && !sk2) {
-          const sorted = MTSM_DATA.SKILLS.slice().sort((a, b) => player.skills[a] - player.skills[b]);
-          sk1 = sorted[0];
-          sk2 = sorted[1];
-        } else if (!sk1) {
-          // Only sk2 set: pick lowest skill that isn't sk2
-          sk1 = MTSM_DATA.SKILLS.filter(s => s !== sk2).sort((a, b) => player.skills[a] - player.skills[b])[0];
-        } else if (!sk2) {
-          // Only sk1 set: pick lowest skill that isn't sk1
-          sk2 = MTSM_DATA.SKILLS.filter(s => s !== sk1).sort((a, b) => player.skills[a] - player.skills[b])[0];
-        }
-        // Decide which skill to train: if current training is sk1 and it reached target, switch to sk2
+        // Always pick the two lowest skills for THIS specific player
+        const sorted = MTSM_DATA.SKILLS.slice().sort((a, b) => player.skills[a] - player.skills[b]);
+        const sk1 = sorted[0];
+        const sk2 = sorted[1];
+        // Decide which skill to train: if current training reached target, switch to the other
         if (player.training === sk1 && player.skills[sk1] >= target) {
           player.training = sk2;
         } else if (player.training === sk2 && player.skills[sk2] >= target) {
           player.training = sk1;
-        } else if (!player.training) {
-          // No training set at all — assign the lower of the two
+        } else if (!player.training || (player.training !== sk1 && player.training !== sk2)) {
+          // No training set or training a skill that's no longer one of the two lowest — reassign
           player.training = player.skills[sk1] <= player.skills[sk2] ? sk1 : sk2;
         }
-        // If both skills are at target, pick the lower one to keep training
+        // If both skills are at target, keep training the lower one
         if (player.skills[sk1] >= target && player.skills[sk2] >= target) {
           player.training = player.skills[sk1] <= player.skills[sk2] ? sk1 : sk2;
         }
@@ -952,7 +932,7 @@ const MTSM_ENGINE = (() => {
   function upgradeAssistantCoach(hpIdx) {
     if (!state.assistantCoachData) state.assistantCoachData = {};
     if (!state.assistantCoachData[hpIdx]) {
-      state.assistantCoachData[hpIdx] = { quality: 0, training1: null, training2: null, targetLevel: 99 };
+      state.assistantCoachData[hpIdx] = { quality: 0, targetLevel: 99 };
     }
     const ac = state.assistantCoachData[hpIdx];
     if (ac.quality >= 4) return { success: false, msg: 'Already at maximum quality.' };
@@ -968,8 +948,6 @@ const MTSM_ENGINE = (() => {
     if (ac.quality <= 0) return { success: false, msg: 'No assistant coach to dismiss.' };
     ac.quality--;
     if (ac.quality === 0) {
-      ac.training1 = null;
-      ac.training2 = null;
       ac.targetLevel = 99;
       pushNews({ type: 'STAFF', text: 'Assistant Coach dismissed.' });
       return { success: true, msg: 'Assistant Coach dismissed.' };
@@ -979,14 +957,12 @@ const MTSM_ENGINE = (() => {
     return { success: true, msg: `Assistant Coach downgraded to ${levelName}.` };
   }
 
-  function setAssistantCoachConfig(hpIdx, training1, training2, targetLevel) {
+  function setAssistantCoachConfig(hpIdx, targetLevel) {
     if (!state.assistantCoachData || !state.assistantCoachData[hpIdx]) return { success: false, msg: 'No assistant coach.' };
     const ac = state.assistantCoachData[hpIdx];
     if (ac.quality <= 0) return { success: false, msg: 'Hire an assistant coach first.' };
-    ac.training1 = training1 || null;
-    ac.training2 = training2 || null;
     ac.targetLevel = (targetLevel && targetLevel > 0 && targetLevel <= 99) ? targetLevel : 99;
-    return { success: true, msg: 'Assistant Coach training plan updated.' };
+    return { success: true, msg: 'Assistant Coach target level updated.' };
   }
 
   function upgradeYouthAssistantCoach(hpIdx) {
@@ -1005,8 +981,6 @@ const MTSM_ENGINE = (() => {
     if ((ad.asstCoach || 0) <= 0) return { success: false, msg: 'No youth assistant coach to dismiss.' };
     ad.asstCoach--;
     if (ad.asstCoach === 0) {
-      ad.asstTraining1 = null;
-      ad.asstTraining2 = null;
       ad.asstTargetLevel = 99;
       pushNews({ type: 'ACADEMY', text: 'Youth Assistant Coach dismissed.' });
       return { success: true, msg: 'Youth Assistant Coach dismissed.' };
@@ -1016,14 +990,12 @@ const MTSM_ENGINE = (() => {
     return { success: true, msg: `Youth Assistant Coach downgraded to ${levelName}.` };
   }
 
-  function setYouthAssistantCoachConfig(hpIdx, training1, training2, targetLevel) {
+  function setYouthAssistantCoachConfig(hpIdx, targetLevel) {
     if (!state.youthAcademyData || !state.youthAcademyData[hpIdx]) return { success: false, msg: 'No youth academy.' };
     const ad = state.youthAcademyData[hpIdx];
     if ((ad.asstCoach || 0) <= 0) return { success: false, msg: 'Hire a youth assistant coach first.' };
-    ad.asstTraining1 = training1 || null;
-    ad.asstTraining2 = training2 || null;
     ad.asstTargetLevel = (targetLevel && targetLevel > 0 && targetLevel <= 99) ? targetLevel : 99;
-    return { success: true, msg: 'Youth Assistant Coach training plan updated.' };
+    return { success: true, msg: 'Youth Assistant Coach target level updated.' };
   }
 
   // ===== GROUND MANAGEMENT =====
@@ -2077,8 +2049,6 @@ const MTSM_ENGINE = (() => {
       for (const key of Object.keys(savedState.youthAcademyData)) {
         const ad = savedState.youthAcademyData[key];
         if (ad.asstCoach === undefined) ad.asstCoach = 0;
-        if (ad.asstTraining1 === undefined) ad.asstTraining1 = null;
-        if (ad.asstTraining2 === undefined) ad.asstTraining2 = null;
         if (ad.asstTargetLevel === undefined) ad.asstTargetLevel = 99;
       }
     }
