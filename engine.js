@@ -74,7 +74,13 @@ const MTSM_ENGINE = (() => {
       youthAcademy = {};
       youthAcademyData = {};
       for (let i = 0; i < humanPlayers.length; i++) {
-        youthAcademyData[i] = { quality: 0, youthCoach: 0 }; // both start at level 0
+        youthAcademyData[i] = {
+          quality: 0, youthCoach: 0,
+          asstCoach: 0,           // youth assistant coach quality (0=None, 1-4)
+          asstTraining1: null,    // first skill
+          asstTraining2: null,    // second skill
+          asstTargetLevel: 99    // threshold to switch
+        };
         const prospectCount = MTSM_DATA.ACADEMY_QUALITY.prospectCount[0];
         const skillBonus = MTSM_DATA.ACADEMY_QUALITY.baseSkillBonus[0];
         youthAcademy[i] = generateYouthPlayers(prospectCount, skillBonus);
@@ -84,9 +90,16 @@ const MTSM_ENGINE = (() => {
     // Initialize club history for each human player
     const clubHistory = {};
     const matchLog = {};
+    const assistantCoachData = {};
     for (let i = 0; i < humanPlayers.length; i++) {
       clubHistory[i] = [];
       matchLog[i] = [];
+      assistantCoachData[i] = {
+        quality: 0,          // 0=None, 1-4 = tiers
+        training1: null,     // first skill to train (or null for auto)
+        training2: null,     // second skill to switch to
+        targetLevel: 99      // switch when training1 reaches this
+      };
     }
 
     state = {
@@ -116,7 +129,8 @@ const MTSM_ENGINE = (() => {
       youthAcademyData,
       clubHistory,
       matchLog,
-      clubOffers: {}
+      clubOffers: {},
+      assistantCoachData
     };
 
     return state;
@@ -459,6 +473,40 @@ const MTSM_ENGINE = (() => {
       }
     }
 
+    // Youth assistant coach: auto-assign training for academy prospects
+    if (state.options.youthAcademy && state.youthAcademy && state.youthAcademyData) {
+      for (let i = 0; i < state.humanPlayers.length; i++) {
+        if (state.humanPlayers[i].sacked) continue;
+        const ad = state.youthAcademyData[i];
+        if (!ad || (ad.asstCoach || 0) <= 0) continue;
+        const academy = state.youthAcademy[i];
+        if (!academy) continue;
+        for (const player of academy) {
+          let sk1 = ad.asstTraining1;
+          let sk2 = ad.asstTraining2;
+          const target = ad.asstTargetLevel || 99;
+          if (!sk1 && !sk2) {
+            const sorted = MTSM_DATA.SKILLS.slice().sort((a, b) => player.skills[a] - player.skills[b]);
+            sk1 = sorted[0]; sk2 = sorted[1];
+          } else if (!sk1) {
+            sk1 = MTSM_DATA.SKILLS.filter(s => s !== sk2).sort((a, b) => player.skills[a] - player.skills[b])[0];
+          } else if (!sk2) {
+            sk2 = MTSM_DATA.SKILLS.filter(s => s !== sk1).sort((a, b) => player.skills[a] - player.skills[b])[0];
+          }
+          if (player.training === sk1 && player.skills[sk1] >= target) {
+            player.training = sk2;
+          } else if (player.training === sk2 && player.skills[sk2] >= target) {
+            player.training = sk1;
+          } else if (!player.training) {
+            player.training = player.skills[sk1] <= player.skills[sk2] ? sk1 : sk2;
+          }
+          if (player.skills[sk1] >= target && player.skills[sk2] >= target) {
+            player.training = player.skills[sk1] <= player.skills[sk2] ? sk1 : sk2;
+          }
+        }
+      }
+    }
+
     // Youth coach training (if enabled) — trains academy prospects each week
     if (state.options.youthAcademy && state.youthAcademy && state.youthAcademyData) {
       for (let i = 0; i < state.humanPlayers.length; i++) {
@@ -468,10 +516,12 @@ const MTSM_ENGINE = (() => {
         const academy = state.youthAcademy[i];
         if (!academy) continue;
         const coachBonus = MTSM_DATA.YOUTH_COACH_QUALITY.trainBonus[ad.youthCoach];
+        // Youth assistant coach adds training bonus
+        const asstBonus = (ad.asstCoach || 0) > 0 ? MTSM_DATA.ASST_COACH_QUALITY.trainBonus[ad.asstCoach] : 0;
         for (const player of academy) {
           // Youth coach trains targeted skill if set, otherwise random
           const skill = player.training || MTSM_DATA.pick(MTSM_DATA.SKILLS);
-          const trainChance = 0.15 + coachBonus;
+          const trainChance = 0.15 + coachBonus + asstBonus;
           if (Math.random() < trainChance) {
             const oldSkill = player.skills[skill];
             player.skills[skill] = Math.min(99, player.skills[skill] + 1);
@@ -565,21 +615,82 @@ const MTSM_ENGINE = (() => {
         const staffWages = Object.values(team.staff).reduce((s, st) => s + st.wage, 0);
         // Youth coach wage (if applicable)
         let youthCoachWage = 0;
-        if (state.options.youthAcademy && team.isHuman && state.youthAcademyData) {
+        let asstCoachWage = 0;
+        let youthAsstCoachWage = 0;
+        if (team.isHuman) {
           const hpIdx = team.humanPlayerIndex;
-          const ad = state.youthAcademyData[hpIdx];
-          if (ad && ad.youthCoach > 0) {
-            youthCoachWage = MTSM_DATA.YOUTH_COACH_QUALITY.costs[ad.youthCoach];
+          if (state.options.youthAcademy && state.youthAcademyData) {
+            const ad = state.youthAcademyData[hpIdx];
+            if (ad && ad.youthCoach > 0) {
+              youthCoachWage = MTSM_DATA.YOUTH_COACH_QUALITY.costs[ad.youthCoach];
+            }
+            if (ad && (ad.asstCoach || 0) > 0) {
+              youthAsstCoachWage = MTSM_DATA.ASST_COACH_QUALITY.costs[ad.asstCoach];
+            }
+          }
+          if (state.assistantCoachData) {
+            const ac = state.assistantCoachData[hpIdx];
+            if (ac && ac.quality > 0) {
+              asstCoachWage = MTSM_DATA.ASST_COACH_QUALITY.costs[ac.quality];
+            }
           }
         }
-        team.balance -= playerWages + staffWages + youthCoachWage;
-        team.weeklyWages = playerWages + staffWages + youthCoachWage;
-        recordFinance(team, 'expense', playerWages + staffWages + youthCoachWage, 'Wages (players + staff)');
+        const totalWages = playerWages + staffWages + youthCoachWage + asstCoachWage + youthAsstCoachWage;
+        team.balance -= totalWages;
+        team.weeklyWages = totalWages;
+        recordFinance(team, 'expense', totalWages, 'Wages (players + staff)');
+      }
+    }
+  }
+
+  // Assistant coach: auto-assign training for players on human teams
+  function applyAssistantCoachLogic() {
+    if (!state.assistantCoachData) return;
+    for (let i = 0; i < state.humanPlayers.length; i++) {
+      const hp = state.humanPlayers[i];
+      if (hp.sacked) continue;
+      const ac = state.assistantCoachData[i];
+      if (!ac || ac.quality <= 0) continue;
+      const team = state.divisions[hp.division].teams[hp.teamIndex];
+      for (const player of team.players) {
+        if (player.injured > 0) continue;
+        // Determine the two skills this player should cycle between
+        let sk1 = ac.training1;
+        let sk2 = ac.training2;
+        const target = ac.targetLevel || 99;
+        // If no skills chosen, auto-pick the two lowest skills
+        if (!sk1 && !sk2) {
+          const sorted = MTSM_DATA.SKILLS.slice().sort((a, b) => player.skills[a] - player.skills[b]);
+          sk1 = sorted[0];
+          sk2 = sorted[1];
+        } else if (!sk1) {
+          // Only sk2 set: pick lowest skill that isn't sk2
+          sk1 = MTSM_DATA.SKILLS.filter(s => s !== sk2).sort((a, b) => player.skills[a] - player.skills[b])[0];
+        } else if (!sk2) {
+          // Only sk1 set: pick lowest skill that isn't sk1
+          sk2 = MTSM_DATA.SKILLS.filter(s => s !== sk1).sort((a, b) => player.skills[a] - player.skills[b])[0];
+        }
+        // Decide which skill to train: if current training is sk1 and it reached target, switch to sk2
+        if (player.training === sk1 && player.skills[sk1] >= target) {
+          player.training = sk2;
+        } else if (player.training === sk2 && player.skills[sk2] >= target) {
+          player.training = sk1;
+        } else if (!player.training) {
+          // No training set at all — assign the lower of the two
+          player.training = player.skills[sk1] <= player.skills[sk2] ? sk1 : sk2;
+        }
+        // If both skills are at target, pick the lower one to keep training
+        if (player.skills[sk1] >= target && player.skills[sk2] >= target) {
+          player.training = player.skills[sk1] <= player.skills[sk2] ? sk1 : sk2;
+        }
       }
     }
   }
 
   function processTraining() {
+    // Apply assistant coach auto-training before processing
+    applyAssistantCoachLogic();
+
     for (let dIdx = 0; dIdx < state.divisions.length; dIdx++) {
       const div = state.divisions[dIdx];
       for (const team of div.teams) {
@@ -589,6 +700,13 @@ const MTSM_ENGINE = (() => {
             const oldSkill = player.skills[player.training];
             // Youth players with high potential train faster
             let trainChance = 0.3 + coachQ * 0.1;
+            // Assistant coach bonus for human teams
+            if (team.isHuman && state.assistantCoachData) {
+              const ac = state.assistantCoachData[team.humanPlayerIndex];
+              if (ac && ac.quality > 0) {
+                trainChance += MTSM_DATA.ASST_COACH_QUALITY.trainBonus[ac.quality];
+              }
+            }
             if (state.options.youthAcademy && player.isYouth && player.potential) {
               trainChance += (player.potential - 50) / 200; // e.g. pot 90 adds +0.2
               // Youth potential slowly becomes actual skill with age
@@ -828,6 +946,84 @@ const MTSM_ENGINE = (() => {
     teamObj.staff[role] = { quality: newQuality, wage: newWage };
     if (teamObj.isHuman) pushNews({ type: 'STAFF', text: `${role} downgraded to ${MTSM_DATA.STAFF_QUALITIES[newQuality]}.` });
     return { success: true, msg: `${role} downgraded to ${MTSM_DATA.STAFF_QUALITIES[newQuality]}.` };
+  }
+
+  // ===== ASSISTANT COACH MANAGEMENT =====
+  function upgradeAssistantCoach(hpIdx) {
+    if (!state.assistantCoachData) state.assistantCoachData = {};
+    if (!state.assistantCoachData[hpIdx]) {
+      state.assistantCoachData[hpIdx] = { quality: 0, training1: null, training2: null, targetLevel: 99 };
+    }
+    const ac = state.assistantCoachData[hpIdx];
+    if (ac.quality >= 4) return { success: false, msg: 'Already at maximum quality.' };
+    ac.quality++;
+    const levelName = MTSM_DATA.ASST_COACH_QUALITY.levels[ac.quality];
+    pushNews({ type: 'STAFF', text: `Assistant Coach ${ac.quality === 1 ? 'hired' : 'upgraded'} to ${levelName}.` });
+    return { success: true, msg: `Assistant Coach ${ac.quality === 1 ? 'hired' : 'upgraded'} to ${levelName}!` };
+  }
+
+  function downgradeAssistantCoach(hpIdx) {
+    if (!state.assistantCoachData || !state.assistantCoachData[hpIdx]) return { success: false, msg: 'No assistant coach.' };
+    const ac = state.assistantCoachData[hpIdx];
+    if (ac.quality <= 0) return { success: false, msg: 'No assistant coach to dismiss.' };
+    ac.quality--;
+    if (ac.quality === 0) {
+      ac.training1 = null;
+      ac.training2 = null;
+      ac.targetLevel = 99;
+      pushNews({ type: 'STAFF', text: 'Assistant Coach dismissed.' });
+      return { success: true, msg: 'Assistant Coach dismissed.' };
+    }
+    const levelName = MTSM_DATA.ASST_COACH_QUALITY.levels[ac.quality];
+    pushNews({ type: 'STAFF', text: `Assistant Coach downgraded to ${levelName}.` });
+    return { success: true, msg: `Assistant Coach downgraded to ${levelName}.` };
+  }
+
+  function setAssistantCoachConfig(hpIdx, training1, training2, targetLevel) {
+    if (!state.assistantCoachData || !state.assistantCoachData[hpIdx]) return { success: false, msg: 'No assistant coach.' };
+    const ac = state.assistantCoachData[hpIdx];
+    if (ac.quality <= 0) return { success: false, msg: 'Hire an assistant coach first.' };
+    ac.training1 = training1 || null;
+    ac.training2 = training2 || null;
+    ac.targetLevel = (targetLevel && targetLevel > 0 && targetLevel <= 99) ? targetLevel : 99;
+    return { success: true, msg: 'Assistant Coach training plan updated.' };
+  }
+
+  function upgradeYouthAssistantCoach(hpIdx) {
+    if (!state.youthAcademyData || !state.youthAcademyData[hpIdx]) return { success: false, msg: 'No youth academy.' };
+    const ad = state.youthAcademyData[hpIdx];
+    if ((ad.asstCoach || 0) >= 4) return { success: false, msg: 'Already at maximum quality.' };
+    ad.asstCoach = (ad.asstCoach || 0) + 1;
+    const levelName = MTSM_DATA.ASST_COACH_QUALITY.levels[ad.asstCoach];
+    pushNews({ type: 'ACADEMY', text: `Youth Assistant Coach ${ad.asstCoach === 1 ? 'hired' : 'upgraded'} to ${levelName}.` });
+    return { success: true, msg: `Youth Assistant Coach ${ad.asstCoach === 1 ? 'hired' : 'upgraded'} to ${levelName}!` };
+  }
+
+  function downgradeYouthAssistantCoach(hpIdx) {
+    if (!state.youthAcademyData || !state.youthAcademyData[hpIdx]) return { success: false, msg: 'No youth academy.' };
+    const ad = state.youthAcademyData[hpIdx];
+    if ((ad.asstCoach || 0) <= 0) return { success: false, msg: 'No youth assistant coach to dismiss.' };
+    ad.asstCoach--;
+    if (ad.asstCoach === 0) {
+      ad.asstTraining1 = null;
+      ad.asstTraining2 = null;
+      ad.asstTargetLevel = 99;
+      pushNews({ type: 'ACADEMY', text: 'Youth Assistant Coach dismissed.' });
+      return { success: true, msg: 'Youth Assistant Coach dismissed.' };
+    }
+    const levelName = MTSM_DATA.ASST_COACH_QUALITY.levels[ad.asstCoach];
+    pushNews({ type: 'ACADEMY', text: `Youth Assistant Coach downgraded to ${levelName}.` });
+    return { success: true, msg: `Youth Assistant Coach downgraded to ${levelName}.` };
+  }
+
+  function setYouthAssistantCoachConfig(hpIdx, training1, training2, targetLevel) {
+    if (!state.youthAcademyData || !state.youthAcademyData[hpIdx]) return { success: false, msg: 'No youth academy.' };
+    const ad = state.youthAcademyData[hpIdx];
+    if ((ad.asstCoach || 0) <= 0) return { success: false, msg: 'Hire a youth assistant coach first.' };
+    ad.asstTraining1 = training1 || null;
+    ad.asstTraining2 = training2 || null;
+    ad.asstTargetLevel = (targetLevel && targetLevel > 0 && targetLevel <= 99) ? targetLevel : 99;
+    return { success: true, msg: 'Youth Assistant Coach training plan updated.' };
   }
 
   // ===== GROUND MANAGEMENT =====
@@ -1875,6 +2071,17 @@ const MTSM_ENGINE = (() => {
     if (!savedState.weeklyFinances) savedState.weeklyFinances = {};
     if (!savedState.youthAcademyData) savedState.youthAcademyData = {};
     if (!savedState.clubOffers) savedState.clubOffers = {};
+    if (!savedState.assistantCoachData) savedState.assistantCoachData = {};
+    // Ensure youth academy data has assistant coach fields
+    if (savedState.youthAcademyData) {
+      for (const key of Object.keys(savedState.youthAcademyData)) {
+        const ad = savedState.youthAcademyData[key];
+        if (ad.asstCoach === undefined) ad.asstCoach = 0;
+        if (ad.asstTraining1 === undefined) ad.asstTraining1 = null;
+        if (ad.asstTraining2 === undefined) ad.asstTraining2 = null;
+        if (ad.asstTargetLevel === undefined) ad.asstTargetLevel = 99;
+      }
+    }
     state = savedState;
     return true;
   }
@@ -1910,6 +2117,12 @@ const MTSM_ENGINE = (() => {
     acceptClubOffer,
     acceptApproachOffer,
     declineApproachOffers,
+    upgradeAssistantCoach,
+    downgradeAssistantCoach,
+    setAssistantCoachConfig,
+    upgradeYouthAssistantCoach,
+    downgradeYouthAssistantCoach,
+    setYouthAssistantCoachConfig,
     FORMATIONS,
     CUP_PRIZE_MONEY,
     NATIONAL_CUP_PRIZE_MONEY,
