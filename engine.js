@@ -881,11 +881,6 @@ const MTSM_ENGINE = (() => {
               Object.values(player.skills).reduce((a, b) => a + b, 0) / MTSM_DATA.SKILLS.length
             );
           }
-          // Recalculate transfer value each season
-          const ageMult = player.age <= 22 ? 1.3 - (player.age - 17) * 0.04 : player.age <= 29 ? 1.0 : 1.0 - (player.age - 29) * 0.07;
-          const divMult = [1.5, 1.2, 1.0, 0.8][dIdx] || 1.0;
-          const youthMult = player.isYouth ? 0.3 : 1.0;
-          player.value = Math.round(player.overall * 10000 * ageMult * divMult * youthMult);
           // After a season on the senior squad, youth players graduate to normal valuation
           if (player.isYouth) {
             if (team.isHuman) {
@@ -893,6 +888,11 @@ const MTSM_ENGINE = (() => {
             }
             delete player.isYouth;
           }
+          // Recalculate transfer value each season (after youth graduation so multiplier is correct)
+          const ageMult = player.age <= 22 ? 1.3 - (player.age - 17) * 0.04 : player.age <= 29 ? 1.0 : 1.0 - (player.age - 29) * 0.07;
+          const divMult = [1.5, 1.2, 1.0, 0.8][dIdx] || 1.0;
+          const youthMult = player.isYouth ? 0.3 : 1.0;
+          player.value = Math.round(player.overall * 10000 * ageMult * divMult * youthMult);
         }
         // Auto-retire very old players
         const retired = team.players.filter(p => p.age >= 37);
