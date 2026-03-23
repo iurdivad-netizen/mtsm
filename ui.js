@@ -495,7 +495,7 @@ const MTSM_UI = (() => {
     });
 
     return `
-      <div class="panel-header">👥 SQUAD — ${team.players.length}/16 Players</div>
+      <div class="panel-header">👥 SQUAD — ${team.players.length}/25 Players</div>
       <div style="overflow-x:auto;">
         <table class="data-table">
           <thead>
@@ -1225,7 +1225,7 @@ const MTSM_UI = (() => {
                     </td>
                   ` : ''}
                   <td>
-                    <button class="btn btn-small" onclick="MTSM_UI._signYouth(${idx})" ${team.players.length >= 16 ? 'disabled style="opacity:0.3"' : ''}>Sign</button>
+                    <button class="btn btn-small" onclick="MTSM_UI._signYouth(${idx})" ${team.players.length >= 25 ? 'disabled style="opacity:0.3"' : ''}>Sign</button>
                     <button class="btn btn-small btn-danger" onclick="MTSM_UI._releaseYouth(${idx})" style="margin-left:4px;">✕</button>
                   </td>
                 </tr>
@@ -1236,7 +1236,7 @@ const MTSM_UI = (() => {
         <div class="mt-4 text-muted" style="font-size:12px;">
           ⭐ Potential shows the ceiling. Higher potential = faster growth during training.
           ${ycQuality > 0 ? '🏋️ Youth coach trains selected skill each week.' : ''}
-          Squad: ${team.players.length}/16
+          Squad: ${team.players.length}/25
         </div>
       `}
     `;

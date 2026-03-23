@@ -146,8 +146,8 @@ const MTSM_DATA = (() => {
 
   function generateTeam(name, divisionIndex) {
     const players = [];
-    // Generate a balanced squad of 16
-    const posCount = { GK: 2, DEF: 5, MID: 5, FWD: 4 };
+    // Generate a balanced squad of 25
+    const posCount = { GK: 3, DEF: 8, MID: 8, FWD: 6 };
     for (const [pos, count] of Object.entries(posCount)) {
       for (let i = 0; i < count; i++) {
         players.push(generatePlayer(divisionIndex, pos));
