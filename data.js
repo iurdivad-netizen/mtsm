@@ -122,11 +122,14 @@ const MTSM_DATA = (() => {
       skills[sk] = Math.max(1, Math.min(99, val));
     }
     const overall = Math.round(Object.values(skills).reduce((a, b) => a + b, 0) / SKILLS.length);
-    const wage = Math.round((overall * 50 + randInt(0, 500)) / 10) * 10;
+    // Wage scales by division: top-flight players earn far more than lower league
+    const wageCoeff = [45, 30, 20, 12][divisionTier] || 20;
+    const wageRand = [400, 300, 200, 150][divisionTier] || 200;
+    const wage = Math.round((overall * wageCoeff + randInt(0, wageRand)) / 10) * 10;
     // Age multiplier: young players (17-22) worth more, older (31+) worth less
     const ageMult = age <= 22 ? 1.3 - (age - 17) * 0.04 : age <= 29 ? 1.0 : 1.0 - (age - 29) * 0.07;
-    // Division multiplier: higher divisions increase value
-    const divMult = [1.5, 1.2, 1.0, 0.8][divisionTier] || 1.0;
+    // Division multiplier: higher divisions vastly increase value
+    const divMult = [1.5, 1.0, 0.5, 0.25][divisionTier] || 1.0;
     const value = Math.round(overall * 10000 * ageMult * divMult);
 
     return {
