@@ -410,8 +410,8 @@ const MTSM_UI = (() => {
           <button class="icon-btn ${subView === 'history' ? 'active' : ''}" onclick="MTSM_UI.renderGame('history')">
             <span class="icon">📜</span>History
           </button>
-          <button class="icon-btn ${subView === 'career' ? 'active' : ''}" onclick="MTSM_UI.renderGame('career')">
-            <span class="icon">🏢</span>Career
+          <button class="icon-btn ${subView === 'career' ? 'active' : ''}" onclick="MTSM_UI.renderGame('career')" style="${(state.clubOffers && state.clubOffers[state.currentPlayerIndex] && state.clubOffers[state.currentPlayerIndex].length > 0) ? 'border-color:var(--color-accent);' : ''}">
+            <span class="icon">🏢</span>Career${(state.clubOffers && state.clubOffers[state.currentPlayerIndex] && state.clubOffers[state.currentPlayerIndex].length > 0) ? ' <span style="color:var(--color-accent);font-size:10px;">(' + state.clubOffers[state.currentPlayerIndex].length + ')</span>' : ''}
           </button>
           <button class="icon-btn" onclick="MTSM_UI._playMatchDay()" style="border-color:var(--color-accent);color:var(--color-accent);">
             <span class="icon">⚽</span>Play
@@ -2100,10 +2100,40 @@ const MTSM_UI = (() => {
   // ===== CAREER (RESIGN / CLUB OFFERS) =====
   let _pendingOffers = null;
 
+  function _renderOfferCards(offers, acceptFn) {
+    let html = `<div style="display:flex;flex-direction:column;gap:8px;">`;
+    for (let i = 0; i < offers.length; i++) {
+      const o = offers[i];
+      html += `
+        <div class="stat-card" style="cursor:pointer;border:1px solid var(--color-border);" onclick="${acceptFn}(${i})">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <span style="color:var(--color-text-bright);font-size:14px;">${o.teamName}</span>
+              <span style="color:var(--color-accent);font-size:12px;margin-left:8px;">${o.divisionName}</span>
+            </div>
+          </div>
+          <div style="display:flex;gap:16px;margin-top:6px;font-size:12px;color:var(--color-text-muted);">
+            <span>Balance: <span class="${o.balance < 0 ? 'text-danger' : ''}" style="color:var(--color-text-bright);">${formatMoney(o.balance)}</span></span>
+            <span>Squad: <span style="color:var(--color-text-bright);">${o.squadSize}</span></span>
+            <span>Avg OVR: <span style="color:var(--color-text-bright);">${o.avgOverall}</span></span>
+          </div>
+          <div style="margin-top:6px;">
+            <button class="btn btn-small btn-accent">ACCEPT OFFER</button>
+          </div>
+        </div>
+      `;
+    }
+    html += `</div>`;
+    return html;
+  }
+
   function renderCareer() {
     const state = MTSM_ENGINE.getState();
     const hp = state.humanPlayers[state.currentPlayerIndex];
     const team = MTSM_ENGINE.getCurrentHumanTeam();
+
+    // Approach offers from other clubs (generated during season)
+    const approachOffers = (state.clubOffers && state.clubOffers[state.currentPlayerIndex]) || [];
 
     let html = `
       <div class="panel-header">🏢 CAREER MANAGEMENT</div>
@@ -2111,8 +2141,31 @@ const MTSM_UI = (() => {
         <div style="margin-bottom:16px;color:var(--color-text-muted);font-size:13px;">
           Current club: <span style="color:var(--color-text-bright);">${team.name}</span> (Division ${hp.division + 1})
         </div>
+    `;
 
-        <div class="panel-header" style="font-size:12px;">RESIGN FROM CLUB</div>
+    // Show approach offers (clubs that contacted the manager during the season)
+    if (approachOffers.length > 0) {
+      html += `
+        <div class="panel-header" style="font-size:12px;">📬 CLUB APPROACHES (${approachOffers.length})</div>
+        <div style="font-size:12px;color:var(--color-text-muted);margin:8px 0;">
+          These clubs have approached you to become their manager. Accept to leave your current club, or decline.
+        </div>
+        ${_renderOfferCards(approachOffers, 'MTSM_UI._acceptApproach')}
+        <div class="mt-4">
+          <button class="btn btn-small" onclick="MTSM_UI._declineApproaches()">✕ DECLINE ALL APPROACHES</button>
+        </div>
+      `;
+    } else {
+      html += `
+        <div class="panel-header" style="font-size:12px;">📬 CLUB APPROACHES</div>
+        <div style="font-size:12px;color:var(--color-text-muted);margin:8px 0;">
+          No clubs have approached you yet. Perform well and clubs will come calling every few weeks.
+        </div>
+      `;
+    }
+
+    html += `
+        <div class="panel-header mt-4" style="font-size:12px;">RESIGN FROM CLUB</div>
         <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">
           <button class="btn" onclick="MTSM_UI._confirmResign('retire')" style="text-align:left;">
             🚪 RETIRE — End your management career
@@ -2126,46 +2179,45 @@ const MTSM_UI = (() => {
         </div>
     `;
 
-    // Show pending offers if any
+    // Show pending resignation offers if any (from "Get Offers" resign option)
     if (_pendingOffers && _pendingOffers.length > 0) {
       html += `
-        <div class="panel-header mt-4" style="font-size:12px;">📬 CLUB OFFERS</div>
+        <div class="panel-header mt-4" style="font-size:12px;">📨 RESIGNATION OFFERS</div>
         <div style="font-size:12px;color:var(--color-text-muted);margin:8px 0;">
-          These clubs want you as their new manager. Choose one to accept.
+          You have resigned. Choose a club to manage next.
         </div>
-        <div style="display:flex;flex-direction:column;gap:8px;">
-      `;
-      for (let i = 0; i < _pendingOffers.length; i++) {
-        const o = _pendingOffers[i];
-        html += `
-          <div class="stat-card" style="cursor:pointer;border:1px solid var(--color-border);" onclick="MTSM_UI._acceptOffer(${i})">
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-              <div>
-                <span style="color:var(--color-text-bright);font-size:14px;">${o.teamName}</span>
-                <span style="color:var(--color-accent);font-size:12px;margin-left:8px;">${o.divisionName}</span>
-              </div>
-            </div>
-            <div style="display:flex;gap:16px;margin-top:6px;font-size:12px;color:var(--color-text-muted);">
-              <span>Balance: <span class="${o.balance < 0 ? 'text-danger' : ''}" style="color:var(--color-text-bright);">${formatMoney(o.balance)}</span></span>
-              <span>Squad: <span style="color:var(--color-text-bright);">${o.squadSize}</span></span>
-              <span>Avg OVR: <span style="color:var(--color-text-bright);">${o.avgOverall}</span></span>
-            </div>
-            <div style="margin-top:6px;">
-              <button class="btn btn-small btn-accent">ACCEPT OFFER</button>
-            </div>
-          </div>
-        `;
-      }
-      html += `
-        </div>
+        ${_renderOfferCards(_pendingOffers, 'MTSM_UI._acceptOffer')}
         <div class="mt-4">
-          <button class="btn btn-small" onclick="MTSM_UI._cancelOffers()">✕ DECLINE ALL OFFERS</button>
+          <button class="btn btn-small" onclick="MTSM_UI._cancelOffers()">✕ DECLINE ALL — Go to Division 4</button>
         </div>
       `;
     }
 
     html += `</div>`;
     return html;
+  }
+
+  function _acceptApproach(offerIdx) {
+    const state = MTSM_ENGINE.getState();
+    const team = MTSM_ENGINE.getCurrentHumanTeam();
+    const offers = (state.clubOffers && state.clubOffers[state.currentPlayerIndex]) || [];
+    if (offerIdx < 0 || offerIdx >= offers.length) return;
+    const offer = offers[offerIdx];
+    if (!confirm(`Leave ${team.name} to manage ${offer.teamName} (${offer.divisionName})? This is immediate.`)) return;
+    const result = MTSM_ENGINE.acceptApproachOffer(state.currentPlayerIndex, offerIdx);
+    if (result.success) {
+      showNotification(result.msg);
+      renderGame();
+    } else {
+      showNotification(result.msg, true);
+    }
+  }
+
+  function _declineApproaches() {
+    const state = MTSM_ENGINE.getState();
+    MTSM_ENGINE.declineApproachOffers(state.currentPlayerIndex);
+    showNotification('All approach offers declined.');
+    renderGame('career');
   }
 
   function _confirmResign(option) {
@@ -2425,7 +2477,9 @@ const MTSM_UI = (() => {
     _confirmResign,
     _requestOffers,
     _acceptOffer,
-    _cancelOffers
+    _cancelOffers,
+    _acceptApproach,
+    _declineApproaches
   };
 
 })();
