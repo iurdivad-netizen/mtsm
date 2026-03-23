@@ -126,7 +126,7 @@ const MTSM_ENGINE = (() => {
   function getCurrentHumanTeam() {
     if (!state) return null;
     const hp = state.humanPlayers[state.currentPlayerIndex];
-    if (!hp || hp.sacked) return null;
+    if (!hp || hp.sacked || hp._lookingForClub) return null;
     return state.divisions[hp.division].teams[hp.teamIndex];
   }
 
@@ -1631,6 +1631,181 @@ const MTSM_ENGINE = (() => {
     return { success: true, msg: 'Auto-selected best 11 players.' };
   }
 
+  // ===== CAREER: RESIGN & CLUB OFFERS =====
+
+  function _getManagerPerformanceScore(hpIdx) {
+    const hp = state.humanPlayers[hpIdx];
+    if (!hp || hp.sacked) return 0;
+    const team = state.divisions[hp.division].teams[hp.teamIndex];
+    const table = getLeagueTable(hp.division);
+    const pos = table.findIndex(t => t.name === team.name) + 1;
+
+    // Score 0-100 based on: league position, division level, board confidence, win ratio
+    let score = 0;
+    // Division bonus: higher division = better reputation (0-30)
+    score += (3 - hp.division) * 10;
+    // League position bonus (0-30): top = 30, bottom = 0
+    score += Math.round((16 - pos) / 15 * 30);
+    // Win ratio bonus (0-20)
+    const winRatio = team.played > 0 ? team.won / team.played : 0;
+    score += Math.round(winRatio * 20);
+    // Board confidence bonus (0-20)
+    if (state.options.boardConfidence) {
+      score += Math.round(hp.boardConfidence / 5);
+    } else {
+      score += 10; // neutral if board confidence is off
+    }
+    return Math.min(100, Math.max(0, score));
+  }
+
+  function generateClubOffers(hpIdx) {
+    const hp = state.humanPlayers[hpIdx];
+    if (!hp || hp.sacked) return [];
+
+    const perfScore = _getManagerPerformanceScore(hpIdx);
+    const currentTeam = state.divisions[hp.division].teams[hp.teamIndex];
+    const offers = [];
+
+    // Determine which divisions can offer based on performance
+    // Low perf (0-25): only div 4 offers
+    // Med perf (26-50): div 3-4 offers
+    // Good perf (51-75): div 2-4 offers
+    // Great perf (76-100): div 1-4 offers
+    let minDiv = 3; // division index (0=top, 3=bottom)
+    if (perfScore > 75) minDiv = 0;
+    else if (perfScore > 50) minDiv = 1;
+    else if (perfScore > 25) minDiv = 2;
+
+    // Can't get offers from a higher division than your current one minus 1
+    minDiv = Math.max(minDiv, hp.division - 1);
+
+    // Generate 3 offers from random AI clubs
+    const candidates = [];
+    for (let d = minDiv; d <= 3; d++) {
+      for (let t = 0; t < state.divisions[d].teams.length; t++) {
+        const team = state.divisions[d].teams[t];
+        // Skip human-managed teams and the manager's current team
+        if (team.isHuman) continue;
+        candidates.push({ division: d, teamIndex: t, team });
+      }
+    }
+
+    // Shuffle candidates
+    for (let i = candidates.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+    }
+
+    // Weight: prefer higher-division clubs for high performers
+    candidates.sort((a, b) => {
+      if (perfScore > 50) return a.division - b.division; // prefer higher divs
+      return b.division - a.division; // prefer lower divs for poor performers
+    });
+
+    // Pick top 3
+    const picked = candidates.slice(0, 3);
+    for (const c of picked) {
+      const teamStrength = calculateTeamStrength(c.team);
+      const avgOverall = c.team.players.length > 0
+        ? Math.round(c.team.players.reduce((s, p) => s + p.overall, 0) / c.team.players.length)
+        : 0;
+      offers.push({
+        division: c.division,
+        teamIndex: c.teamIndex,
+        teamName: c.team.name,
+        balance: c.team.balance,
+        squadSize: c.team.players.length,
+        avgOverall,
+        divisionName: `Division ${c.division + 1}`
+      });
+    }
+
+    return offers;
+  }
+
+  function resignManager(hpIdx, option) {
+    const hp = state.humanPlayers[hpIdx];
+    if (!hp || hp.sacked) return { success: false, msg: 'No active manager.' };
+
+    const oldTeam = state.divisions[hp.division].teams[hp.teamIndex];
+    const oldTeamName = oldTeam.name;
+
+    if (option === 'retire') {
+      // Permanently end this manager's career
+      hp.sacked = true;
+      oldTeam.isHuman = false;
+      oldTeam.humanPlayerIndex = -1;
+      delete oldTeam.humanName;
+      pushNews({
+        type: 'RESIGN',
+        text: `${hp.name} has RETIRED from football management after managing ${oldTeamName}.`
+      });
+      return { success: true, msg: `${hp.name} has retired from management.`, retired: true };
+    }
+
+    if (option === 'restart') {
+      // Leave current club, get assigned to a random AI club in Division 4
+      oldTeam.isHuman = false;
+      oldTeam.humanPlayerIndex = -1;
+      delete oldTeam.humanName;
+
+      // Find a random AI team in Division 4
+      const div4Teams = state.divisions[3].teams.filter(t => !t.isHuman);
+      if (div4Teams.length === 0) return { success: false, msg: 'No available clubs in Division 4.' };
+      const newTeam = div4Teams[Math.floor(Math.random() * div4Teams.length)];
+      const newTeamIdx = state.divisions[3].teams.indexOf(newTeam);
+
+      newTeam.isHuman = true;
+      newTeam.humanPlayerIndex = hpIdx;
+      newTeam.humanName = hp.name;
+      hp.division = 3;
+      hp.teamIndex = newTeamIdx;
+      hp.boardConfidence = 50;
+
+      pushNews({
+        type: 'RESIGN',
+        text: `${hp.name} has resigned from ${oldTeamName} and taken charge of ${newTeam.name} in Division 4!`
+      });
+      return { success: true, msg: `You are now manager of ${newTeam.name} in Division 4!`, newTeam: newTeam.name };
+    }
+
+    return { success: false, msg: 'Invalid option.' };
+  }
+
+  function acceptClubOffer(hpIdx, offer) {
+    const hp = state.humanPlayers[hpIdx];
+    if (!hp || hp.sacked) return { success: false, msg: 'No active manager.' };
+
+    const oldTeam = state.divisions[hp.division].teams[hp.teamIndex];
+    const oldTeamName = oldTeam.name;
+
+    // Verify the target team is still AI-managed
+    const targetTeam = state.divisions[offer.division].teams[offer.teamIndex];
+    if (!targetTeam || targetTeam.isHuman) {
+      return { success: false, msg: 'This club is no longer available.' };
+    }
+
+    // Leave old club
+    oldTeam.isHuman = false;
+    oldTeam.humanPlayerIndex = -1;
+    delete oldTeam.humanName;
+
+    // Join new club
+    targetTeam.isHuman = true;
+    targetTeam.humanPlayerIndex = hpIdx;
+    targetTeam.humanName = hp.name;
+    hp.division = offer.division;
+    hp.teamIndex = offer.teamIndex;
+    hp.boardConfidence = 50;
+
+    pushNews({
+      type: 'TRANSFER',
+      text: `${hp.name} has left ${oldTeamName} to become the new manager of ${targetTeam.name} (Division ${offer.division + 1})!`
+    });
+
+    return { success: true, msg: `Welcome to ${targetTeam.name}! You are now managing in Division ${offer.division + 1}.` };
+  }
+
   // ===== SAVE / LOAD =====
   function saveGame() {
     if (!state) return null;
@@ -1676,6 +1851,9 @@ const MTSM_ENGINE = (() => {
     setStartingXI,
     autoSelectXI,
     getStartingEleven,
+    generateClubOffers,
+    resignManager,
+    acceptClubOffer,
     FORMATIONS,
     CUP_PRIZE_MONEY,
     NATIONAL_CUP_PRIZE_MONEY,
