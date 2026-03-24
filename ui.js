@@ -690,7 +690,10 @@ const MTSM_UI = (() => {
           <tbody>
             ${team.players.map(p => {
               const autoSkill = hasAsstCoach ? MTSM_ENGINE.getAutoTraining(hpIdx, p) : null;
-              const activeTraining = p.userTraining || autoSkill;
+              const acTarget = hasAsstCoach ? (state.assistantCoachData[hpIdx].targetLevel || 99) : 99;
+              const userMaxed = p.userTraining && p.skills[p.userTraining] >= acTarget;
+              const activeTraining = (p.userTraining && !userMaxed) ? p.userTraining : autoSkill;
+              const isAuto = !p.userTraining || userMaxed;
               return `
               <tr>
                 <td>${p.name}${p.injured > 0 ? ' <span class="text-danger">(INJ)</span>' : ''}</td>
@@ -704,8 +707,8 @@ const MTSM_UI = (() => {
                   </select>
                 </td>
                 ${hasAsstCoach ? `
-                  <td class="num" style="font-size:11px;${p.userTraining ? '' : 'color:var(--color-accent);'}">
-                    ${activeTraining ? (p.userTraining ? activeTraining : activeTraining + ' (auto)') : '—'}
+                  <td class="num" style="font-size:11px;${isAuto ? 'color:var(--color-accent);' : ''}">
+                    ${activeTraining ? (isAuto ? activeTraining + ' (auto)' : activeTraining) : '—'}
                   </td>
                 ` : ''}
               </tr>
