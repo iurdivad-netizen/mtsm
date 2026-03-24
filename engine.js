@@ -2084,6 +2084,18 @@ const MTSM_ENGINE = (() => {
       hp.teamIndex = newTeamIdx;
       hp.boardConfidence = 50;
 
+      // Reset youth academy for the new club
+      if (state.options.youthAcademy && state.youthAcademy) {
+        state.youthAcademyData[hpIdx] = {
+          quality: 0, youthCoach: 0,
+          asstCoach: 0,
+          asstTargetLevel: 99
+        };
+        const prospectCount = MTSM_DATA.ACADEMY_QUALITY.prospectCount[0];
+        const skillBonus = MTSM_DATA.ACADEMY_QUALITY.baseSkillBonus[0];
+        state.youthAcademy[hpIdx] = generateYouthPlayers(prospectCount, skillBonus);
+      }
+
       // Check if club needs a loan (UI will show modal for user to choose terms)
       const needsLoan = newTeam.balance < 0;
       const loanPreview = needsLoan ? getLoanPreview(newTeam) : null;
@@ -2141,6 +2153,18 @@ const MTSM_ENGINE = (() => {
     hp.division = offer.division;
     hp.teamIndex = offer.teamIndex;
     hp.boardConfidence = 50;
+
+    // Reset youth academy for the new club
+    if (state.options.youthAcademy && state.youthAcademy) {
+      state.youthAcademyData[hpIdx] = {
+        quality: 0, youthCoach: 0,
+        asstCoach: 0,
+        asstTargetLevel: 99
+      };
+      const prospectCount = MTSM_DATA.ACADEMY_QUALITY.prospectCount[0];
+      const skillBonus = MTSM_DATA.ACADEMY_QUALITY.baseSkillBonus[0];
+      state.youthAcademy[hpIdx] = generateYouthPlayers(prospectCount, skillBonus);
+    }
 
     // Check if club needs a loan (UI will show modal for user to choose terms)
     const needsLoan = targetTeam.balance < 0;
