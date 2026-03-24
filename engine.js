@@ -2084,6 +2084,11 @@ const MTSM_ENGINE = (() => {
       hp.teamIndex = newTeamIdx;
       hp.boardConfidence = 50;
 
+      // Reset assistant coach for the new club
+      if (state.assistantCoachData) {
+        state.assistantCoachData[hpIdx] = { quality: 0, targetLevel: 99 };
+      }
+
       // Reset youth academy for the new club
       if (state.options.youthAcademy && state.youthAcademy) {
         state.youthAcademyData[hpIdx] = {
@@ -2153,6 +2158,11 @@ const MTSM_ENGINE = (() => {
     hp.division = offer.division;
     hp.teamIndex = offer.teamIndex;
     hp.boardConfidence = 50;
+
+    // Reset assistant coach for the new club
+    if (state.assistantCoachData) {
+      state.assistantCoachData[hpIdx] = { quality: 0, targetLevel: 99 };
+    }
 
     // Reset youth academy for the new club
     if (state.options.youthAcademy && state.youthAcademy) {
