@@ -1833,7 +1833,16 @@ const MTSM_UI = (() => {
             <span>Weeks to Clear</span>
             <span>${Math.ceil(team.loan.remaining / team.loan.weeklyRepayment)}</span>
           </div>
-          <div style="margin-top:8px;display:flex;gap:8px;">
+          <div style="margin-top:8px;">
+            <label style="font-family:var(--font-display);font-size:10px;color:var(--color-accent);">ADJUST REPAYMENT TERM</label>
+            <select style="width:100%;padding:6px;margin-top:4px;margin-bottom:8px;" onchange="MTSM_UI._changeLoanTerm(parseInt(this.value))">
+              ${[30,40,60,90,120,150].map(w => {
+                const currentWeeks = team.loan.repaymentWeeks || 40;
+                return `<option value="${w}" ${w === currentWeeks ? 'selected' : ''}>${w} weeks (~${(w/30).toFixed(1)} seasons)${w === 30 ? ' — fastest' : w === 150 ? ' — easiest' : ''}</option>`;
+              }).join('')}
+            </select>
+          </div>
+          <div style="display:flex;gap:8px;">
             <button class="btn btn-small" onclick="MTSM_UI._repayLoan(5000)">Repay \u00a35,000</button>
             <button class="btn btn-small" onclick="MTSM_UI._repayLoan(${team.loan.remaining})">Repay All (\u00a3${team.loan.remaining.toLocaleString()})</button>
           </div>
@@ -1844,6 +1853,85 @@ const MTSM_UI = (() => {
         💡 Home matches generate gate income — upgrade ground capacity to earn more!
       </div>
     `;
+  }
+
+  function _showLoanTermsModal(loanAmount) {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.id = 'loan-terms-modal';
+    const defaultWeeks = 40;
+    const defaultWeekly = Math.max(500, Math.round(loanAmount / defaultWeeks));
+    modal.innerHTML = `
+      <div class="modal">
+        <h3>EMERGENCY LOAN</h3>
+        <div style="margin-bottom:16px;">
+          <div class="text-muted" style="font-size:13px;margin-bottom:8px;">
+            Your new club is in debt. An emergency loan of <strong class="text-accent">\u00a3${loanAmount.toLocaleString()}</strong> will be issued.
+          </div>
+          <div style="margin-bottom:12px;">
+            <label style="font-family:var(--font-display);font-size:10px;color:var(--color-accent);">REPAYMENT TERM</label>
+            <select id="loan-weeks-select" style="width:100%;padding:8px;margin-top:4px;" onchange="
+              var w = parseInt(this.value);
+              var weekly = Math.max(500, Math.round(${loanAmount} / w));
+              document.getElementById('loan-preview-weekly').textContent = '\u00a3' + weekly.toLocaleString() + '/week';
+              document.getElementById('loan-preview-total-weeks').textContent = Math.ceil(${loanAmount} / weekly) + ' weeks';
+              document.getElementById('loan-preview-seasons').textContent = '~' + (w / 30).toFixed(1) + ' seasons';
+            ">
+              <option value="30">30 weeks (~1 season) — fastest</option>
+              <option value="40" selected>40 weeks (~1.3 seasons)</option>
+              <option value="60">60 weeks (~2 seasons)</option>
+              <option value="90">90 weeks (~3 seasons)</option>
+              <option value="120">120 weeks (~4 seasons)</option>
+              <option value="150">150 weeks (~5 seasons) — easiest</option>
+            </select>
+          </div>
+          <div class="ground-stat" style="margin-bottom:4px;">
+            <span>Weekly Repayment</span>
+            <span class="text-danger" id="loan-preview-weekly">-\u00a3${defaultWeekly.toLocaleString()}/week</span>
+          </div>
+          <div class="ground-stat" style="margin-bottom:4px;">
+            <span>Weeks to Clear</span>
+            <span id="loan-preview-total-weeks">${Math.ceil(loanAmount / defaultWeekly)} weeks</span>
+          </div>
+          <div class="ground-stat">
+            <span>Approx. Seasons</span>
+            <span id="loan-preview-seasons">~${(defaultWeeks / 30).toFixed(1)} seasons</span>
+          </div>
+        </div>
+        <div class="btn-group" style="justify-content:center;">
+          <button class="btn btn-accent" onclick="MTSM_UI._confirmLoanTerms()">ACCEPT LOAN</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  }
+
+  function _confirmLoanTerms() {
+    const select = document.getElementById('loan-weeks-select');
+    const weeks = select ? parseInt(select.value) : 40;
+    const modal = document.getElementById('loan-terms-modal');
+    if (modal) modal.remove();
+
+    const team = MTSM_ENGINE.getCurrentHumanTeam();
+    if (team) {
+      const loanInfo = MTSM_ENGINE.confirmEmergencyLoan(team, weeks);
+      if (loanInfo) {
+        showNotification(`Emergency loan of \u00a3${loanInfo.loanAmount.toLocaleString()} issued — repay \u00a3${loanInfo.weeklyRepayment.toLocaleString()}/week over ~${loanInfo.weeksToRepay} weeks.`);
+      }
+    }
+    renderGame('finances');
+  }
+
+  function _changeLoanTerm(weeks) {
+    const team = MTSM_ENGINE.getCurrentHumanTeam();
+    if (!team) return;
+    const result = MTSM_ENGINE.setLoanRepaymentTerm(team, weeks);
+    if (result.success) {
+      showNotification(result.msg);
+    } else {
+      showNotification(result.msg, true);
+    }
+    renderGame('finances');
   }
 
   // ===== STAFF =====
@@ -2708,7 +2796,11 @@ const MTSM_UI = (() => {
     const result = MTSM_ENGINE.acceptApproachOffer(state.currentPlayerIndex, offerIdx);
     if (result.success) {
       showNotification(result.msg);
-      renderGame();
+      if (result.needsLoan && result.loanPreview) {
+        _showLoanTermsModal(result.loanPreview.loanAmount);
+      } else {
+        renderGame();
+      }
     } else {
       showNotification(result.msg, true);
     }
@@ -2748,6 +2840,8 @@ const MTSM_UI = (() => {
             MTSM_ENGINE.getState().currentPlayerIndex = MTSM_ENGINE.getState().humanPlayers.findIndex(h => !h.sacked);
             renderGame();
           }
+        } else if (result.needsLoan && result.loanPreview) {
+          _showLoanTermsModal(result.loanPreview.loanAmount);
         } else {
           renderGame();
         }
@@ -2795,7 +2889,11 @@ const MTSM_UI = (() => {
       hp._lookingForClub = false;
       const result = MTSM_ENGINE.resignManager(state.currentPlayerIndex, 'restart');
       showNotification('No clubs made an offer. ' + result.msg, true);
-      renderGame();
+      if (result.needsLoan && result.loanPreview) {
+        _showLoanTermsModal(result.loanPreview.loanAmount);
+      } else {
+        renderGame();
+      }
       return;
     }
 
@@ -2825,15 +2923,18 @@ const MTSM_UI = (() => {
     hp.boardConfidence = 50;
     hp._lookingForClub = false;
 
-    // Auto-loan if club is in debt
-    const loanInfo = MTSM_ENGINE.issueEmergencyLoan(targetTeam);
-
     _pendingOffers = null;
     let msg = `Welcome to ${targetTeam.name}! You are now managing in Division ${offer.division + 1}.`;
-    if (loanInfo) {
-      msg += ` Emergency loan: £${loanInfo.loanAmount.toLocaleString()} (repay £${loanInfo.weeklyRepayment.toLocaleString()}/week).`;
-    }
     showNotification(msg);
+
+    // Show loan terms modal if club is in debt
+    if (targetTeam.balance < 0) {
+      const preview = MTSM_ENGINE.getLoanPreview(targetTeam);
+      if (preview) {
+        _showLoanTermsModal(preview.loanAmount);
+        return;
+      }
+    }
     renderGame();
   }
 
@@ -2864,14 +2965,17 @@ const MTSM_UI = (() => {
     hp.teamIndex = newTeamIdx;
     hp.boardConfidence = 50;
 
-    // Auto-loan if club is in debt
-    const loanInfo = MTSM_ENGINE.issueEmergencyLoan(newTeam);
-
     let msg = `You have taken charge of ${newTeam.name} in Division 4.`;
-    if (loanInfo) {
-      msg += ` Emergency loan: £${loanInfo.loanAmount.toLocaleString()} (repay £${loanInfo.weeklyRepayment.toLocaleString()}/week).`;
-    }
     showNotification(msg);
+
+    // Show loan terms modal if club is in debt
+    if (newTeam.balance < 0) {
+      const preview = MTSM_ENGINE.getLoanPreview(newTeam);
+      if (preview) {
+        _showLoanTermsModal(preview.loanAmount);
+        return;
+      }
+    }
     renderGame();
   }
 
@@ -3020,7 +3124,10 @@ const MTSM_UI = (() => {
     _declineApproaches,
     _sortSquad,
     _filterSquad,
-    _repayLoan
+    _repayLoan,
+    _showLoanTermsModal,
+    _confirmLoanTerms,
+    _changeLoanTerm
   };
 
 })();
