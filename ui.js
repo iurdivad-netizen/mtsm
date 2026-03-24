@@ -3019,7 +3019,8 @@ const MTSM_UI = (() => {
     _acceptApproach,
     _declineApproaches,
     _sortSquad,
-    _filterSquad
+    _filterSquad,
+    _repayLoan
   };
 
 })();
