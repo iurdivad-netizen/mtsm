@@ -656,12 +656,15 @@ const MTSM_UI = (() => {
   // ===== TRAINING =====
   function renderTraining() {
     const team = MTSM_ENGINE.getCurrentHumanTeam();
+    const state = MTSM_ENGINE.getState();
+    const hpIdx = state.currentPlayerIndex;
     const coachQ = MTSM_DATA.STAFF_QUALITIES[team.staff.Coach.quality];
+    const hasAsstCoach = state.assistantCoachData && state.assistantCoachData[hpIdx] && state.assistantCoachData[hpIdx].quality > 0;
 
     return `
       <div class="panel-header">🏋️ TRAINING — Coach: ${coachQ}</div>
       <div class="text-muted mb-4" style="font-size:13px;">
-        Select a skill to train for each player. Better coaches improve training results.
+        Select a skill to train for each player.${hasAsstCoach ? ' If no skill is chosen, the assistant coach auto-assigns based on each player\'s weakest skills.' : ' Better coaches improve training results.'}
       </div>
       <div style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;">
         <span style="font-size:12px;font-weight:bold;margin-right:4px;">Quick set:</span>
@@ -680,11 +683,15 @@ const MTSM_UI = (() => {
             <tr>
               <th>Player</th><th>Pos</th><th>Ovr</th>
               ${MTSM_DATA.SKILLS.map(s => `<th>${s.substring(0, 3)}</th>`).join('')}
-              <th>Training</th>
+              <th>Your Choice</th>
+              ${hasAsstCoach ? '<th>Active</th>' : ''}
             </tr>
           </thead>
           <tbody>
-            ${team.players.map(p => `
+            ${team.players.map(p => {
+              const autoSkill = hasAsstCoach ? MTSM_ENGINE.getAutoTraining(hpIdx, p) : null;
+              const activeTraining = p.userTraining || autoSkill;
+              return `
               <tr>
                 <td>${p.name}${p.injured > 0 ? ' <span class="text-danger">(INJ)</span>' : ''}</td>
                 <td class="pos-${p.position.toLowerCase()}">${p.position}</td>
@@ -693,11 +700,16 @@ const MTSM_UI = (() => {
                 <td>
                   <select onchange="MTSM_UI._setTraining('${p.id}', this.value)" style="font-size:12px;padding:2px 4px;">
                     <option value="">— None —</option>
-                    ${MTSM_DATA.SKILLS.map(s => `<option value="${s}" ${p.training === s ? 'selected' : ''}>${s}</option>`).join('')}
+                    ${MTSM_DATA.SKILLS.map(s => `<option value="${s}" ${p.userTraining === s ? 'selected' : ''}>${s}</option>`).join('')}
                   </select>
                 </td>
+                ${hasAsstCoach ? `
+                  <td class="num" style="font-size:11px;${p.userTraining ? '' : 'color:var(--color-accent);'}">
+                    ${activeTraining ? (p.userTraining ? activeTraining : activeTraining + ' (auto)') : '—'}
+                  </td>
+                ` : ''}
               </tr>
-            `).join('')}
+            `;}).join('')}
           </tbody>
         </table>
       </div>
@@ -708,15 +720,22 @@ const MTSM_UI = (() => {
     const team = MTSM_ENGINE.getCurrentHumanTeam();
     const player = team.players.find(p => p.id === playerId);
     if (player) {
-      player.training = skill || null;
+      player.userTraining = skill || null;
+      // If user sets a skill, that becomes the active training immediately
+      // If user clears it, training will be set by assistant coach next match day
+      player.training = skill || player.training;
     }
+    renderGame('training');
   }
 
   function _setGroupTraining(position, skill) {
     const team = MTSM_ENGINE.getCurrentHumanTeam();
     const value = skill === '_none' ? null : (skill || null);
     for (const p of team.players) {
-      if (p.position === position) p.training = value;
+      if (p.position === position) {
+        p.userTraining = value;
+        p.training = value || p.training;
+      }
     }
     renderGame('training');
   }
