@@ -2073,11 +2073,18 @@ const MTSM_ENGINE = (() => {
       hp.teamIndex = newTeamIdx;
       hp.boardConfidence = 50;
 
+      // Auto-loan if club is in debt
+      const loanInfo = issueEmergencyLoan(newTeam);
+
       pushNews({
         type: 'RESIGN',
         text: `${hp.name} has resigned from ${oldTeamName} and taken charge of ${newTeam.name} in Division 4!`
       });
-      return { success: true, msg: `You are now manager of ${newTeam.name} in Division 4!`, newTeam: newTeam.name };
+      let msg = `You are now manager of ${newTeam.name} in Division 4!`;
+      if (loanInfo) {
+        msg += ` The club was in debt — an emergency loan of £${loanInfo.loanAmount.toLocaleString()} has been issued (repay £${loanInfo.weeklyRepayment.toLocaleString()}/week).`;
+      }
+      return { success: true, msg, newTeam: newTeam.name };
     }
 
     return { success: false, msg: 'Invalid option.' };
@@ -2126,12 +2133,60 @@ const MTSM_ENGINE = (() => {
     hp.teamIndex = offer.teamIndex;
     hp.boardConfidence = 50;
 
+    // Auto-loan if club is in debt
+    const loanInfo = issueEmergencyLoan(targetTeam);
+
     pushNews({
       type: 'TRANSFER',
       text: `${hp.name} has left ${oldTeamName} to become the new manager of ${targetTeam.name} (Division ${offer.division + 1})!`
     });
 
-    return { success: true, msg: `Welcome to ${targetTeam.name}! You are now managing in Division ${offer.division + 1}.` };
+    let msg = `Welcome to ${targetTeam.name}! You are now managing in Division ${offer.division + 1}.`;
+    if (loanInfo) {
+      msg += ` The club was in debt — an emergency loan of £${loanInfo.loanAmount.toLocaleString()} has been issued (repay £${loanInfo.weeklyRepayment.toLocaleString()}/week).`;
+    }
+    return { success: true, msg };
+  }
+
+  // ===== LOAN SYSTEM =====
+  // When a manager joins a club in debt, an emergency loan is issued automatically.
+  // The loan covers the debt + a random bonus (5,000–15,000) to give some runway.
+  // Repayment is 10% of the original loan per week, deducted in processWeeklyCosts.
+  function issueEmergencyLoan(team) {
+    if (team.balance >= 0) return null; // no loan needed
+
+    const debtCover = Math.abs(team.balance);
+    const bonus = 5000 + Math.floor(Math.random() * 10001); // 5k–15k extra
+    const loanAmount = debtCover + bonus;
+    const weeklyRepayment = Math.max(500, Math.round(loanAmount / 20)); // repay over ~20 weeks, min £500/wk
+
+    team.loan = {
+      original: loanAmount,
+      remaining: loanAmount,
+      weeklyRepayment
+    };
+
+    // Credit the loan to the balance
+    team.balance += loanAmount;
+
+    return { loanAmount, weeklyRepayment, weeksToRepay: Math.ceil(loanAmount / weeklyRepayment) };
+  }
+
+  function getTeamLoan(team) {
+    return team.loan || null;
+  }
+
+  function repayLoanEarly(team, amount) {
+    if (!team.loan || team.loan.remaining <= 0) return { success: false, msg: 'No active loan.' };
+    if (amount > team.balance) return { success: false, msg: 'Insufficient funds.' };
+    const payment = Math.min(amount, team.loan.remaining);
+    team.balance -= payment;
+    team.loan.remaining -= payment;
+    if (team.loan.remaining <= 0) {
+      delete team.loan;
+      return { success: true, msg: `Loan fully repaid! Paid £${payment.toLocaleString()}.`, cleared: true };
+    }
+    return { success: true, msg: `Paid £${payment.toLocaleString()}. Remaining: £${team.loan.remaining.toLocaleString()}.` };
   }
 
   // ===== SAVE / LOAD =====
