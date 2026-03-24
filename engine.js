@@ -647,9 +647,16 @@ const MTSM_ENGINE = (() => {
       const target = ac.targetLevel || 99;
       for (const player of team.players) {
         if (player.injured > 0) continue;
-        // If user has manually set training, respect it — assistant coach does nothing
+        // If user has manually set training but the skill has reached the target,
+        // the assistant coach takes over and picks the next weakest skill
         if (player.userTraining) {
-          player.training = player.userTraining;
+          if (player.skills[player.userTraining] >= target) {
+            // User's chosen skill is maxed — auto-assign instead
+            const sorted = MTSM_DATA.SKILLS.slice().sort((a, b) => player.skills[a] - player.skills[b]);
+            player.training = sorted[0] === player.userTraining ? sorted[1] : sorted[0];
+          } else {
+            player.training = player.userTraining;
+          }
           continue;
         }
         // Auto-pick the two lowest skills for THIS specific player
@@ -679,10 +686,16 @@ const MTSM_ENGINE = (() => {
     const ac = state.assistantCoachData[hpIdx];
     if (!ac || ac.quality <= 0) return null;
     const target = ac.targetLevel || 99;
+    // If user chose a skill but it's at target, show what assistant coach would pick
+    if (player.userTraining && player.skills[player.userTraining] >= target) {
+      const sorted = MTSM_DATA.SKILLS.slice().sort((a, b) => player.skills[a] - player.skills[b]);
+      return sorted[0] === player.userTraining ? sorted[1] : sorted[0];
+    }
+    if (player.userTraining) return player.userTraining;
+    // No user training — auto-pick two lowest
     const sorted = MTSM_DATA.SKILLS.slice().sort((a, b) => player.skills[a] - player.skills[b]);
     const sk1 = sorted[0];
     const sk2 = sorted[1];
-    // Mirror the same logic as applyAssistantCoachLogic
     if (player.training === sk1 && player.skills[sk1] >= target) return sk2;
     if (player.training === sk2 && player.skills[sk2] >= target) return sk1;
     if (!player.training || (player.training !== sk1 && player.training !== sk2)) {
