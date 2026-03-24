@@ -1441,12 +1441,19 @@ const MTSM_UI = (() => {
                 <th>Pos</th><th>Name</th><th>Age</th>
                 ${MTSM_DATA.SKILLS.map(s => `<th>${s.substring(0, 3)}</th>`).join('')}
                 <th>Ovr</th><th>Pot</th><th>Fee</th><th>Wage</th>
-                ${ycQuality > 0 ? '<th>Train</th>' : ''}
+                ${ycQuality > 0 ? '<th>Your Choice</th>' : ''}
+                ${ycQuality > 0 && yacQuality > 0 ? '<th>Active</th>' : ''}
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              ${academy.map((p, idx) => `
+              ${academy.map((p, idx) => {
+                const yAutoSkill = yacQuality > 0 ? MTSM_ENGINE.getYouthAutoTraining(hpIdx, p) : null;
+                const yacTarget = yacQuality > 0 ? (ad.asstTargetLevel || 99) : 99;
+                const yUserMaxed = p.userTraining && p.skills[p.userTraining] >= yacTarget;
+                const yActiveTraining = (p.userTraining && !yUserMaxed) ? p.userTraining : yAutoSkill;
+                const yIsAuto = !p.userTraining || yUserMaxed;
+                return `
                 <tr>
                   <td class="pos-${p.position.toLowerCase()}">${p.position}</td>
                   <td>${p.name}</td>
@@ -1460,8 +1467,13 @@ const MTSM_UI = (() => {
                     <td>
                       <select onchange="MTSM_UI._setYouthTraining(${idx}, this.value)" style="font-size:11px;padding:2px;">
                         <option value="">—</option>
-                        ${MTSM_DATA.SKILLS.map(s => `<option value="${s}" ${p.training === s ? 'selected' : ''}>${s.substring(0,3)}</option>`).join('')}
+                        ${MTSM_DATA.SKILLS.map(s => `<option value="${s}" ${p.userTraining === s ? 'selected' : ''}>${s.substring(0,3)}</option>`).join('')}
                       </select>
+                    </td>
+                  ` : ''}
+                  ${ycQuality > 0 && yacQuality > 0 ? `
+                    <td class="num" style="font-size:11px;${yIsAuto ? 'color:var(--color-accent);' : ''}">
+                      ${yActiveTraining ? (yIsAuto ? yActiveTraining.substring(0,3) + ' (auto)' : yActiveTraining.substring(0,3)) : '—'}
                     </td>
                   ` : ''}
                   <td>
@@ -1469,7 +1481,7 @@ const MTSM_UI = (() => {
                     <button class="btn btn-small btn-danger" onclick="MTSM_UI._releaseYouth(${idx})" style="margin-left:4px;">✕</button>
                   </td>
                 </tr>
-              `).join('')}
+              `;}).join('')}
             </tbody>
           </table>
         </div>
@@ -1534,7 +1546,9 @@ const MTSM_UI = (() => {
     const state = MTSM_ENGINE.getState();
     const hpIdx = state.currentPlayerIndex;
     if (state.youthAcademy && state.youthAcademy[hpIdx] && state.youthAcademy[hpIdx][idx]) {
-      state.youthAcademy[hpIdx][idx].training = skill || null;
+      const player = state.youthAcademy[hpIdx][idx];
+      player.userTraining = skill || null;
+      player.training = skill || player.training;
     }
     renderGame('academy');
   }

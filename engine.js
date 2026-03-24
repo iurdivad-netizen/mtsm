@@ -470,6 +470,7 @@ const MTSM_ENGINE = (() => {
     }
 
     // Youth assistant coach: auto-assign training for academy prospects (per-player)
+    // Respects userTraining; takes over when user's chosen skill reaches target
     if (state.options.youthAcademy && state.youthAcademy && state.youthAcademyData) {
       for (let i = 0; i < state.humanPlayers.length; i++) {
         if (state.humanPlayers[i].sacked) continue;
@@ -479,7 +480,18 @@ const MTSM_ENGINE = (() => {
         if (!academy) continue;
         const target = ad.asstTargetLevel || 99;
         for (const player of academy) {
-          // Always pick the two lowest skills for THIS specific prospect
+          // If user has manually set training, check if it's maxed
+          if (player.userTraining) {
+            if (player.skills[player.userTraining] >= target) {
+              // User's chosen skill is maxed — auto-assign instead
+              const sorted = MTSM_DATA.SKILLS.slice().sort((a, b) => player.skills[a] - player.skills[b]);
+              player.training = sorted[0] === player.userTraining ? sorted[1] : sorted[0];
+            } else {
+              player.training = player.userTraining;
+            }
+            continue;
+          }
+          // Auto-pick the two lowest skills for THIS specific prospect
           const sorted = MTSM_DATA.SKILLS.slice().sort((a, b) => player.skills[a] - player.skills[b]);
           const sk1 = sorted[0];
           const sk2 = sorted[1];
@@ -492,6 +504,22 @@ const MTSM_ENGINE = (() => {
           }
           if (player.skills[sk1] >= target && player.skills[sk2] >= target) {
             player.training = player.skills[sk1] <= player.skills[sk2] ? sk1 : sk2;
+          }
+        }
+      }
+    }
+
+    // Sync userTraining for youth prospects (when no youth assistant coach)
+    if (state.options.youthAcademy && state.youthAcademy && state.youthAcademyData) {
+      for (let i = 0; i < state.humanPlayers.length; i++) {
+        if (state.humanPlayers[i].sacked) continue;
+        const ad = state.youthAcademyData[i];
+        if (ad && (ad.asstCoach || 0) > 0) continue; // already handled above
+        const academy = state.youthAcademy[i];
+        if (!academy) continue;
+        for (const player of academy) {
+          if (player.userTraining) {
+            player.training = player.userTraining;
           }
         }
       }
@@ -686,6 +714,33 @@ const MTSM_ENGINE = (() => {
     const ac = state.assistantCoachData[hpIdx];
     if (!ac || ac.quality <= 0) return null;
     const target = ac.targetLevel || 99;
+    // If user chose a skill but it's at target, show what assistant coach would pick
+    if (player.userTraining && player.skills[player.userTraining] >= target) {
+      const sorted = MTSM_DATA.SKILLS.slice().sort((a, b) => player.skills[a] - player.skills[b]);
+      return sorted[0] === player.userTraining ? sorted[1] : sorted[0];
+    }
+    if (player.userTraining) return player.userTraining;
+    // No user training — auto-pick two lowest
+    const sorted = MTSM_DATA.SKILLS.slice().sort((a, b) => player.skills[a] - player.skills[b]);
+    const sk1 = sorted[0];
+    const sk2 = sorted[1];
+    if (player.training === sk1 && player.skills[sk1] >= target) return sk2;
+    if (player.training === sk2 && player.skills[sk2] >= target) return sk1;
+    if (!player.training || (player.training !== sk1 && player.training !== sk2)) {
+      return player.skills[sk1] <= player.skills[sk2] ? sk1 : sk2;
+    }
+    if (player.skills[sk1] >= target && player.skills[sk2] >= target) {
+      return player.skills[sk1] <= player.skills[sk2] ? sk1 : sk2;
+    }
+    return player.training;
+  }
+
+  // Compute what the youth assistant coach would auto-assign for a given prospect (for UI display)
+  function getYouthAutoTraining(hpIdx, player) {
+    if (!state.youthAcademyData) return null;
+    const ad = state.youthAcademyData[hpIdx];
+    if (!ad || (ad.asstCoach || 0) <= 0) return null;
+    const target = ad.asstTargetLevel || 99;
     // If user chose a skill but it's at target, show what assistant coach would pick
     if (player.userTraining && player.skills[player.userTraining] >= target) {
       const sorted = MTSM_DATA.SKILLS.slice().sort((a, b) => player.skills[a] - player.skills[b]);
@@ -2142,6 +2197,7 @@ const MTSM_ENGINE = (() => {
     downgradeAssistantCoach,
     setAssistantCoachConfig,
     getAutoTraining,
+    getYouthAutoTraining,
     upgradeYouthAssistantCoach,
     downgradeYouthAssistantCoach,
     setYouthAssistantCoachConfig,
