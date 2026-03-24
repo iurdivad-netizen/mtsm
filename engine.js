@@ -657,6 +657,17 @@ const MTSM_ENGINE = (() => {
         team.balance -= totalWages;
         team.weeklyWages = totalWages;
         recordFinance(team, 'expense', totalWages, 'Wages (players + staff)');
+
+        // Automatic loan repayment
+        if (team.loan && team.loan.remaining > 0) {
+          const payment = Math.min(team.loan.weeklyRepayment, team.loan.remaining);
+          team.balance -= payment;
+          team.loan.remaining -= payment;
+          recordFinance(team, 'expense', payment, 'Loan repayment');
+          if (team.loan.remaining <= 0) {
+            delete team.loan;
+          }
+        }
       }
     }
   }
@@ -2151,14 +2162,14 @@ const MTSM_ENGINE = (() => {
   // ===== LOAN SYSTEM =====
   // When a manager joins a club in debt, an emergency loan is issued automatically.
   // The loan covers the debt + a random bonus (5,000–15,000) to give some runway.
-  // Repayment is 10% of the original loan per week, deducted in processWeeklyCosts.
+  // Repayment is deducted automatically each week in processWeeklyCosts.
   function issueEmergencyLoan(team) {
     if (team.balance >= 0) return null; // no loan needed
 
     const debtCover = Math.abs(team.balance);
     const bonus = 5000 + Math.floor(Math.random() * 10001); // 5k–15k extra
     const loanAmount = debtCover + bonus;
-    const weeklyRepayment = Math.max(500, Math.round(loanAmount / 20)); // repay over ~20 weeks, min £500/wk
+    const weeklyRepayment = Math.max(500, Math.round(loanAmount / 40)); // repay over ~40 weeks, min £500/wk
 
     team.loan = {
       original: loanAmount,
@@ -2260,7 +2271,9 @@ const MTSM_ENGINE = (() => {
     FORMATIONS,
     CUP_PRIZE_MONEY,
     NATIONAL_CUP_PRIZE_MONEY,
-    LEAGUE_TROPHY_PRIZE_MONEY
+    LEAGUE_TROPHY_PRIZE_MONEY,
+    getTeamLoan,
+    repayLoanEarly
   };
 
 })();
