@@ -1531,6 +1531,33 @@ const MTSM_UI = (() => {
           </div>
         </div>
       </div>
+      ${team.loan && team.loan.remaining > 0 ? `
+        <div style="border-top:1px solid var(--color-border);margin-top:12px;padding-top:12px;">
+          <div style="font-family:var(--font-display);font-size:10px;color:var(--color-accent);margin-bottom:8px;">
+            EMERGENCY LOAN
+          </div>
+          <div class="ground-stat">
+            <span>Original Loan</span>
+            <span>\u00a3${team.loan.original.toLocaleString()}</span>
+          </div>
+          <div class="ground-stat">
+            <span>Remaining</span>
+            <span class="text-danger">\u00a3${team.loan.remaining.toLocaleString()}</span>
+          </div>
+          <div class="ground-stat">
+            <span>Weekly Repayment</span>
+            <span class="text-danger">-\u00a3${team.loan.weeklyRepayment.toLocaleString()}/wk</span>
+          </div>
+          <div class="ground-stat">
+            <span>Weeks to Clear</span>
+            <span>${Math.ceil(team.loan.remaining / team.loan.weeklyRepayment)}</span>
+          </div>
+          <div style="margin-top:8px;display:flex;gap:8px;">
+            <button class="btn btn-small" onclick="MTSM_UI._repayLoan(5000)">Repay \u00a35,000</button>
+            <button class="btn btn-small" onclick="MTSM_UI._repayLoan(${team.loan.remaining})">Repay All (\u00a3${team.loan.remaining.toLocaleString()})</button>
+          </div>
+        </div>
+      ` : ''}
       <div class="mt-4 text-muted" style="font-size:13px;">
         ⚠ If your balance drops below -\u00a350,000, you will be sacked!<br>
         💡 Home matches generate gate income — upgrade ground capacity to earn more!
@@ -1539,6 +1566,21 @@ const MTSM_UI = (() => {
   }
 
   // ===== STAFF =====
+  function _repayLoan(amount) {
+    const team = MTSM_ENGINE.getCurrentHumanTeam();
+    if (!team) return;
+    const result = MTSM_ENGINE.repayLoanEarly(team, amount);
+    if (result.success) {
+      showNotification(result.msg);
+      if (result.cleared) {
+        showNotification('Loan fully repaid! No more weekly deductions.');
+      }
+    } else {
+      showNotification(result.msg, true);
+    }
+    renderGame('finances');
+  }
+
   function renderStaff() {
     const team = MTSM_ENGINE.getCurrentHumanTeam();
 
@@ -2354,8 +2396,15 @@ const MTSM_UI = (() => {
     hp.boardConfidence = 50;
     hp._lookingForClub = false;
 
+    // Auto-loan if club is in debt
+    const loanInfo = MTSM_ENGINE.issueEmergencyLoan(targetTeam);
+
     _pendingOffers = null;
-    showNotification(`Welcome to ${targetTeam.name}! You are now managing in Division ${offer.division + 1}.`);
+    let msg = `Welcome to ${targetTeam.name}! You are now managing in Division ${offer.division + 1}.`;
+    if (loanInfo) {
+      msg += ` Emergency loan: £${loanInfo.loanAmount.toLocaleString()} (repay £${loanInfo.weeklyRepayment.toLocaleString()}/week).`;
+    }
+    showNotification(msg);
     renderGame();
   }
 
@@ -2384,8 +2433,16 @@ const MTSM_UI = (() => {
     newTeam.humanName = hp.name;
     hp.division = 3;
     hp.teamIndex = newTeamIdx;
+    hp.boardConfidence = 50;
 
-    showNotification(`You have taken charge of ${newTeam.name} in Division 4.`);
+    // Auto-loan if club is in debt
+    const loanInfo = MTSM_ENGINE.issueEmergencyLoan(newTeam);
+
+    let msg = `You have taken charge of ${newTeam.name} in Division 4.`;
+    if (loanInfo) {
+      msg += ` Emergency loan: £${loanInfo.loanAmount.toLocaleString()} (repay £${loanInfo.weeklyRepayment.toLocaleString()}/week).`;
+    }
+    showNotification(msg);
     renderGame();
   }
 
@@ -2525,7 +2582,8 @@ const MTSM_UI = (() => {
     _acceptOffer,
     _cancelOffers,
     _acceptApproach,
-    _declineApproaches
+    _declineApproaches,
+    _repayLoan
   };
 
 })();
