@@ -59,6 +59,13 @@ const MTSM_DATA = (() => {
   const STAFF_QUALITIES = ['Useless','Poor','Average','Good','Excellent'];
   const STAFF_COSTS = [500, 1500, 3000, 6000, 12000]; // weekly wage
 
+  // Assistant Coach quality tiers (same scale as other staff but separate for clarity)
+  const ASST_COACH_QUALITY = {
+    levels: ['None','Amateur','Semi-Pro','Professional','Elite'],
+    costs: [0, 600, 1800, 4000, 9000],       // weekly wage
+    trainBonus: [0, 0.03, 0.07, 0.12, 0.18]  // added to training chance when active
+  };
+
   const ACADEMY_QUALITY = {
     levels: ['Basic','Improved','Advanced','Elite','World Class'],
     costs: [0, 40000, 120000, 300000, 600000],
@@ -281,6 +288,7 @@ const MTSM_DATA = (() => {
     STAFF_ROLES,
     STAFF_QUALITIES,
     STAFF_COSTS,
+    ASST_COACH_QUALITY,
     ACADEMY_QUALITY,
     YOUTH_COACH_QUALITY,
     GROUND_UPGRADES,

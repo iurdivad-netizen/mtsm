@@ -7,6 +7,40 @@ const MTSM_UI = (() => {
   let currentView = 'title';
   let notification = '';
 
+  // Squad sorting/filtering state
+  let _squadSort = { column: 'position', direction: 'asc' };
+  let _squadSearch = '';
+
+  // ===== CONFIRMATION DIALOG =====
+  function _showConfirmDialog(title, message, detail, onConfirm, icon = '⚠️') {
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = `
+      <div class="confirm-dialog">
+        <div class="confirm-icon">${icon}</div>
+        <div class="confirm-title">${title}</div>
+        <div class="confirm-msg">${message}</div>
+        ${detail ? `<div class="confirm-detail">${detail}</div>` : ''}
+        <div class="confirm-actions">
+          <button class="btn btn-danger" id="confirm-yes">CONFIRM</button>
+          <button class="btn" id="confirm-no">CANCEL</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    overlay.querySelector('#confirm-yes').addEventListener('click', () => {
+      document.body.removeChild(overlay);
+      onConfirm();
+    });
+    overlay.querySelector('#confirm-no').addEventListener('click', () => {
+      document.body.removeChild(overlay);
+    });
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) document.body.removeChild(overlay);
+    });
+  }
+
   // ===== CLUB LOGO GENERATOR =====
   function _hashName(name) {
     let h = 0;
@@ -61,14 +95,20 @@ const MTSM_UI = (() => {
     </svg>`;
   }
 
-  function showNotification(msg, isError = false) {
+  function showNotification(msg, isError = false, persistent = false) {
     notification = msg;
     const el = document.getElementById('notification');
     if (el) {
-      el.textContent = msg;
-      el.className = 'notification ' + (isError ? 'error' : 'success');
-      el.classList.remove('hidden');
-      setTimeout(() => el.classList.add('hidden'), 3000);
+      if (persistent) {
+        el.innerHTML = `${msg}<button class="notif-dismiss" onclick="this.parentElement.classList.add('hidden');">&times;</button>`;
+        el.className = 'notification persistent ' + (isError ? 'error' : 'warning');
+        el.classList.remove('hidden');
+      } else {
+        el.textContent = msg;
+        el.className = 'notification ' + (isError ? 'error' : 'success');
+        el.classList.remove('hidden');
+        setTimeout(() => el.classList.add('hidden'), 3000);
+      }
     }
   }
 
@@ -510,26 +550,84 @@ const MTSM_UI = (() => {
   }
 
   // ===== SQUAD =====
+  function _sortSquad(column) {
+    if (_squadSort.column === column) {
+      _squadSort.direction = _squadSort.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+      _squadSort.column = column;
+      _squadSort.direction = column === 'name' || column === 'position' ? 'asc' : 'desc';
+    }
+    renderGame('squad');
+  }
+
+  function _filterSquad(search) {
+    _squadSearch = search;
+    renderGame('squad');
+  }
+
   function renderSquad() {
     const team = MTSM_ENGINE.getCurrentHumanTeam();
     const positions = ['GK', 'DEF', 'MID', 'FWD'];
-    const sorted = [...team.players].sort((a, b) => {
-      return positions.indexOf(a.position) - positions.indexOf(b.position) || b.overall - a.overall;
+
+    // Filter by search
+    let players = [...team.players];
+    if (_squadSearch) {
+      const q = _squadSearch.toLowerCase();
+      players = players.filter(p =>
+        p.name.toLowerCase().includes(q) || p.position.toLowerCase().includes(q)
+      );
+    }
+
+    // Sort
+    const col = _squadSort.column;
+    const dir = _squadSort.direction === 'asc' ? 1 : -1;
+    players.sort((a, b) => {
+      let va, vb;
+      if (col === 'position') {
+        va = positions.indexOf(a.position); vb = positions.indexOf(b.position);
+      } else if (col === 'name') {
+        return dir * a.name.localeCompare(b.name);
+      } else if (col === 'age') {
+        va = a.age; vb = b.age;
+      } else if (col === 'overall') {
+        va = a.overall; vb = b.overall;
+      } else if (col === 'wage') {
+        va = a.wage; vb = b.wage;
+      } else if (MTSM_DATA.SKILLS.includes(col)) {
+        va = a.skills[col]; vb = b.skills[col];
+      } else {
+        va = positions.indexOf(a.position); vb = positions.indexOf(b.position);
+      }
+      if (va === vb) return b.overall - a.overall;
+      return dir * (va - vb);
     });
+
+    const sortIcon = (c) => _squadSort.column === c ? (_squadSort.direction === 'asc' ? ' ▲' : ' ▼') : '';
+    const sortClass = (c) => `sortable ${_squadSort.column === c ? 'sort-active' : ''}`;
 
     return `
       <div class="panel-header">👥 SQUAD — ${team.players.length}/25 Players</div>
+      <div class="squad-controls">
+        <input type="text" placeholder="Search players..." value="${_squadSearch}"
+          oninput="MTSM_UI._filterSquad(this.value)" style="flex:1;max-width:220px;">
+        <span class="text-muted" style="font-size:12px;">Click column headers to sort</span>
+      </div>
       <div style="overflow-x:auto;">
         <table class="data-table">
           <thead>
             <tr>
-              <th>Pos</th><th>Name</th><th>Age</th><th>Ovr</th>
-              ${MTSM_DATA.SKILLS.map(s => `<th>${s.substring(0, 3)}</th>`).join('')}
-              <th>Pot</th><th>Wage</th><th>Status</th>
+              <th class="${sortClass('position')}" onclick="MTSM_UI._sortSquad('position')">Pos${sortIcon('position')}</th>
+              <th class="${sortClass('name')}" onclick="MTSM_UI._sortSquad('name')">Name${sortIcon('name')}</th>
+              <th class="${sortClass('age')}" onclick="MTSM_UI._sortSquad('age')">Age${sortIcon('age')}</th>
+              <th class="${sortClass('overall')}" onclick="MTSM_UI._sortSquad('overall')">Ovr${sortIcon('overall')}</th>
+              ${MTSM_DATA.SKILLS.map(s => `<th class="${sortClass(s)}" onclick="MTSM_UI._sortSquad('${s}')">${s.substring(0, 3)}${sortIcon(s)}</th>`).join('')}
+              <th>Pot</th>
+              <th class="${sortClass('wage')}" onclick="MTSM_UI._sortSquad('wage')">Wage${sortIcon('wage')}</th>
+              <th>Status</th>
             </tr>
           </thead>
           <tbody>
-            ${sorted.map(p => `
+            ${players.map(p => `
               <tr class="${p.injured > 0 ? 'relegation' : ''}">
                 <td class="pos-${p.position.toLowerCase()}">${p.position}</td>
                 <td>${p.name}</td>
@@ -546,6 +644,7 @@ const MTSM_UI = (() => {
           </tbody>
         </table>
       </div>
+      ${_squadSearch && players.length === 0 ? '<div class="text-muted mt-4" style="text-align:center;">No players match your search.</div>' : ''}
       <div class="mt-4 text-muted" style="font-size:13px;">
         Weekly wages: £${team.players.reduce((s, p) => s + p.wage, 0).toLocaleString()}
         • Avg overall: ${Math.round(team.players.reduce((s, p) => s + p.overall, 0) / team.players.length)}
@@ -557,12 +656,15 @@ const MTSM_UI = (() => {
   // ===== TRAINING =====
   function renderTraining() {
     const team = MTSM_ENGINE.getCurrentHumanTeam();
+    const state = MTSM_ENGINE.getState();
+    const hpIdx = state.currentPlayerIndex;
     const coachQ = MTSM_DATA.STAFF_QUALITIES[team.staff.Coach.quality];
+    const hasAsstCoach = state.assistantCoachData && state.assistantCoachData[hpIdx] && state.assistantCoachData[hpIdx].quality > 0;
 
     return `
       <div class="panel-header">🏋️ TRAINING — Coach: ${coachQ}</div>
       <div class="text-muted mb-4" style="font-size:13px;">
-        Select a skill to train for each player. Better coaches improve training results.
+        Select a skill to train for each player.${hasAsstCoach ? ' If no skill is chosen, the assistant coach auto-assigns based on each player\'s weakest skills.' : ' Better coaches improve training results.'}
       </div>
       <div style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;">
         <span style="font-size:12px;font-weight:bold;margin-right:4px;">Quick set:</span>
@@ -581,11 +683,18 @@ const MTSM_UI = (() => {
             <tr>
               <th>Player</th><th>Pos</th><th>Ovr</th>
               ${MTSM_DATA.SKILLS.map(s => `<th>${s.substring(0, 3)}</th>`).join('')}
-              <th>Training</th>
+              <th>Your Choice</th>
+              ${hasAsstCoach ? '<th>Active</th>' : ''}
             </tr>
           </thead>
           <tbody>
-            ${team.players.map(p => `
+            ${team.players.map(p => {
+              const autoSkill = hasAsstCoach ? MTSM_ENGINE.getAutoTraining(hpIdx, p) : null;
+              const acTarget = hasAsstCoach ? (state.assistantCoachData[hpIdx].targetLevel || 99) : 99;
+              const userMaxed = p.userTraining && p.skills[p.userTraining] >= acTarget;
+              const activeTraining = (p.userTraining && !userMaxed) ? p.userTraining : autoSkill;
+              const isAuto = !p.userTraining || userMaxed;
+              return `
               <tr>
                 <td>${p.name}${p.injured > 0 ? ' <span class="text-danger">(INJ)</span>' : ''}</td>
                 <td class="pos-${p.position.toLowerCase()}">${p.position}</td>
@@ -594,11 +703,16 @@ const MTSM_UI = (() => {
                 <td>
                   <select onchange="MTSM_UI._setTraining('${p.id}', this.value)" style="font-size:12px;padding:2px 4px;">
                     <option value="">— None —</option>
-                    ${MTSM_DATA.SKILLS.map(s => `<option value="${s}" ${p.training === s ? 'selected' : ''}>${s}</option>`).join('')}
+                    ${MTSM_DATA.SKILLS.map(s => `<option value="${s}" ${p.userTraining === s ? 'selected' : ''}>${s}</option>`).join('')}
                   </select>
                 </td>
+                ${hasAsstCoach ? `
+                  <td class="num" style="font-size:11px;${isAuto ? 'color:var(--color-accent);' : ''}">
+                    ${activeTraining ? (isAuto ? activeTraining + ' (auto)' : activeTraining) : '—'}
+                  </td>
+                ` : ''}
               </tr>
-            `).join('')}
+            `;}).join('')}
           </tbody>
         </table>
       </div>
@@ -609,15 +723,22 @@ const MTSM_UI = (() => {
     const team = MTSM_ENGINE.getCurrentHumanTeam();
     const player = team.players.find(p => p.id === playerId);
     if (player) {
-      player.training = skill || null;
+      player.userTraining = skill || null;
+      // If user sets a skill, that becomes the active training immediately
+      // If user clears it, training will be set by assistant coach next match day
+      player.training = skill || player.training;
     }
+    renderGame('training');
   }
 
   function _setGroupTraining(position, skill) {
     const team = MTSM_ENGINE.getCurrentHumanTeam();
     const value = skill === '_none' ? null : (skill || null);
     for (const p of team.players) {
-      if (p.position === position) p.training = value;
+      if (p.position === position) {
+        p.userTraining = value;
+        p.training = value || p.training;
+      }
     }
     renderGame('training');
   }
@@ -897,13 +1018,24 @@ const MTSM_UI = (() => {
 
   function _sellPlayer(playerId) {
     const team = MTSM_ENGINE.getCurrentHumanTeam();
-    const result = MTSM_ENGINE.sellPlayer(playerId, team);
-    if (result.success) {
-      showNotification(result.msg);
-    } else {
-      showNotification(result.msg, true);
-    }
-    renderGame('transfers');
+    const player = team.players.find(p => p.id === playerId);
+    if (!player) return;
+
+    _showConfirmDialog(
+      'SELL PLAYER',
+      `Sell <strong>${player.name}</strong> (${player.position}, OVR ${player.overall}) for <strong>£${player.value.toLocaleString()}</strong>?`,
+      `This action cannot be undone. Your squad will have ${team.players.length - 1} players.`,
+      () => {
+        const result = MTSM_ENGINE.sellPlayer(playerId, team);
+        if (result.success) {
+          showNotification(result.msg);
+        } else {
+          showNotification(result.msg, true);
+        }
+        renderGame('transfers');
+      },
+      '💰'
+    );
   }
 
   // ===== LEAGUE TABLE =====
@@ -1021,10 +1153,49 @@ const MTSM_UI = (() => {
         '4-5-1': 'Control. +3 midfield, +1 defensive.',
         '3-4-3': 'All-out attack. +4 forward bonus.'
       };
+      // Build detailed bonus info for selected formation
+      const activeFormation = formations[currentFormation];
+      const activeBonusEntries = Object.entries(activeFormation.bonus || {});
+      const startingPlayers_ = (team.startingXI || []).map(id => team.players.find(p => p.id === id && p.injured === 0)).filter(Boolean);
+      const posCountsForBonus = { GK: 0, DEF: 0, MID: 0, FWD: 0 };
+      startingPlayers_.forEach(p => { posCountsForBonus[p.position] = (posCountsForBonus[p.position] || 0) + 1; });
+
+      let bonusDetailHtml = '';
+      if (activeBonusEntries.length === 0) {
+        bonusDetailHtml = `<div class="no-bonus">No position bonuses — balanced default formation.</div>`;
+      } else {
+        bonusDetailHtml = activeBonusEntries.map(([pos, bonus]) => {
+          const required = activeFormation[pos] || 0;
+          const current = posCountsForBonus[pos] || 0;
+          const met = current >= required;
+          return `<div class="bonus-rule">
+            <span>Need ${required}+ ${pos} in starting XI (you have ${current})</span>
+            <span class="bonus-value" style="color:${met ? 'var(--color-success)' : 'var(--color-text-muted)'};">${met ? `+${bonus} ACTIVE` : `+${bonus} (unmet)`}</span>
+          </div>`;
+        }).join('');
+      }
+
+      // Midfield loading bonus info
+      const midCount = posCountsForBonus.MID || 0;
+      let midBonusHtml = `<div class="bonus-rule">
+        <span>Midfield loading: 5+ MID in XI (you have ${midCount})</span>
+        <span class="bonus-value" style="color:${midCount >= 5 ? 'var(--color-success)' : 'var(--color-text-muted)'};">${midCount >= 5 ? '+5 ACTIVE' : '+5 (unmet)'}</span>
+      </div>`;
+      if (midCount >= 6) {
+        midBonusHtml += `<div class="bonus-rule">
+          <span>Midfield overload: 6+ MID in XI</span>
+          <span class="bonus-value" style="color:var(--color-success);">+3 ACTIVE</span>
+        </div>`;
+      }
+
       formationHtml = `
         <div style="font-family:var(--font-display);font-size:10px;color:var(--color-accent);margin-bottom:8px;">FORMATION</div>
         <div class="formation-grid mb-4">
-          ${Object.keys(formations).map(f => `
+          ${Object.keys(formations).map(f => {
+            const bonusEntries = Object.entries(formations[f].bonus || {});
+            const bonusSummary = bonusEntries.length === 0 ? 'No bonus' :
+              bonusEntries.map(([pos, val]) => `+${val} if ${formations[f][pos]}+ ${pos}`).join(', ');
+            return `
             <div class="formation-card ${f === currentFormation ? 'formation-active' : ''}" onclick="MTSM_UI._setFormation('${f}')">
               <div class="formation-name">${f}</div>
               <div class="formation-layout">
@@ -1034,9 +1205,16 @@ const MTSM_UI = (() => {
                 <span class="pos-fwd">${formations[f].FWD} FWD</span>
               </div>
               <div class="formation-desc">${formationDescriptions[f]}</div>
+              <div style="font-size:11px;color:var(--color-text-muted);margin-top:2px;">Bonus: ${bonusSummary}</div>
               ${f === currentFormation ? '<div class="text-accent" style="font-size:10px;font-family:var(--font-display);margin-top:4px;">SELECTED</div>' : ''}
             </div>
-          `).join('')}
+          `}).join('')}
+        </div>
+        <div class="formation-bonus-info mb-4">
+          <div style="font-family:var(--font-display);font-size:9px;color:var(--color-accent);margin-bottom:4px;">STRENGTH BONUSES FOR ${currentFormation}</div>
+          ${bonusDetailHtml}
+          <div style="border-top:1px solid var(--color-border);margin-top:4px;padding-top:4px;font-family:var(--font-display);font-size:9px;color:var(--color-accent);">UNIVERSAL BONUSES</div>
+          ${midBonusHtml}
         </div>
       `;
     }
@@ -1178,6 +1356,10 @@ const MTSM_UI = (() => {
     const ycLevelName = MTSM_DATA.YOUTH_COACH_QUALITY.levels[ycQuality];
     const ycWage = MTSM_DATA.YOUTH_COACH_QUALITY.costs[ycQuality];
 
+    const yacQuality = ad.asstCoach || 0;
+    const yacLevelName = MTSM_DATA.ASST_COACH_QUALITY.levels[yacQuality];
+    const yacWage = MTSM_DATA.ASST_COACH_QUALITY.costs[yacQuality];
+
     return `
       <div class="panel-header">🌱 YOUTH ACADEMY — ${academy.length}/${acMaxCap} prospect${academy.length !== 1 ? 's' : ''}</div>
       <div class="text-muted mb-4" style="font-size:13px;">Young players with potential. Low stats now but they develop faster. New prospects arrive every 4 weeks (up to capacity). Sign or release to make room.</div>
@@ -1216,6 +1398,41 @@ const MTSM_UI = (() => {
         </div>
       </div>
 
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;">
+        <div class="staff-card" style="flex:1;min-width:300px;flex-direction:column;align-items:stretch;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <div>
+              <div class="role">Youth Assistant Coach</div>
+              <div class="quality">${yacLevelName}</div>
+              <div class="text-muted" style="font-size:12px;">${yacQuality > 0 ? `Wage: £${yacWage.toLocaleString()}/week — Auto-manages prospect training` : 'Hire to automatically manage prospect training focus'}</div>
+            </div>
+            <div class="btn-group">
+              <button class="btn btn-small" onclick="MTSM_UI._upgradeYouthAsstCoach()" ${yacQuality >= 4 ? 'disabled style="opacity:0.3"' : ''}>
+                ${yacQuality === 0 ? 'Hire' : 'Upgrade'}
+              </button>
+              ${yacQuality > 0 ? `
+                <button class="btn btn-small btn-danger" onclick="MTSM_UI._downgradeYouthAsstCoach()">
+                  ${yacQuality === 1 ? 'Dismiss' : 'Downgrade'}
+                </button>
+              ` : ''}
+            </div>
+          </div>
+          ${yacQuality > 0 ? `
+            <div style="border-top:1px solid var(--color-border);padding-top:8px;font-size:12px;">
+              <div class="text-muted" style="margin-bottom:6px;">
+                Automatically trains each prospect's two weakest skills individually. When a skill reaches the target level, switches to that prospect's next weakest skill.
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                <label style="font-size:11px;">Target level:
+                  <input type="number" id="yac-target" min="1" max="99" value="${ad.asstTargetLevel || 99}"
+                    onchange="MTSM_UI._setYouthAsstCoachConfig()" style="width:45px;font-size:11px;padding:2px;">
+                </label>
+              </div>
+            </div>
+          ` : ''}
+        </div>
+      </div>
+
       ${academy.length === 0 ? '<div class="text-muted text-center" style="padding:20px;">No prospects available. Check back in a few weeks.</div>' : `
         <div style="overflow-x:auto;">
           <table class="data-table">
@@ -1224,12 +1441,19 @@ const MTSM_UI = (() => {
                 <th>Pos</th><th>Name</th><th>Age</th>
                 ${MTSM_DATA.SKILLS.map(s => `<th>${s.substring(0, 3)}</th>`).join('')}
                 <th>Ovr</th><th>Pot</th><th>Fee</th><th>Wage</th>
-                ${ycQuality > 0 ? '<th>Train</th>' : ''}
+                ${ycQuality > 0 ? '<th>Your Choice</th>' : ''}
+                ${ycQuality > 0 && yacQuality > 0 ? '<th>Active</th>' : ''}
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              ${academy.map((p, idx) => `
+              ${academy.map((p, idx) => {
+                const yAutoSkill = yacQuality > 0 ? MTSM_ENGINE.getYouthAutoTraining(hpIdx, p) : null;
+                const yacTarget = yacQuality > 0 ? (ad.asstTargetLevel || 99) : 99;
+                const yUserMaxed = p.userTraining && p.skills[p.userTraining] >= yacTarget;
+                const yActiveTraining = (p.userTraining && !yUserMaxed) ? p.userTraining : yAutoSkill;
+                const yIsAuto = !p.userTraining || yUserMaxed;
+                return `
                 <tr>
                   <td class="pos-${p.position.toLowerCase()}">${p.position}</td>
                   <td>${p.name}</td>
@@ -1243,8 +1467,13 @@ const MTSM_UI = (() => {
                     <td>
                       <select onchange="MTSM_UI._setYouthTraining(${idx}, this.value)" style="font-size:11px;padding:2px;">
                         <option value="">—</option>
-                        ${MTSM_DATA.SKILLS.map(s => `<option value="${s}" ${p.training === s ? 'selected' : ''}>${s.substring(0,3)}</option>`).join('')}
+                        ${MTSM_DATA.SKILLS.map(s => `<option value="${s}" ${p.userTraining === s ? 'selected' : ''}>${s.substring(0,3)}</option>`).join('')}
                       </select>
+                    </td>
+                  ` : ''}
+                  ${ycQuality > 0 && yacQuality > 0 ? `
+                    <td class="num" style="font-size:11px;${yIsAuto ? 'color:var(--color-accent);' : ''}">
+                      ${yActiveTraining ? (yIsAuto ? yActiveTraining.substring(0,3) + ' (auto)' : yActiveTraining.substring(0,3)) : '—'}
                     </td>
                   ` : ''}
                   <td>
@@ -1252,7 +1481,7 @@ const MTSM_UI = (() => {
                     <button class="btn btn-small btn-danger" onclick="MTSM_UI._releaseYouth(${idx})" style="margin-left:4px;">✕</button>
                   </td>
                 </tr>
-              `).join('')}
+              `;}).join('')}
             </tbody>
           </table>
         </div>
@@ -1295,18 +1524,70 @@ const MTSM_UI = (() => {
 
   function _downgradeYouthCoach() {
     const state = MTSM_ENGINE.getState();
-    const result = MTSM_ENGINE.downgradeYouthCoach(state.currentPlayerIndex);
-    showNotification(result.msg, !result.success);
-    renderGame('academy');
+    const academy = state.youthAcademy ? state.youthAcademy[state.currentPlayerIndex] : null;
+    const ycQuality = academy ? (academy.youthCoachQuality || 0) : 0;
+    const currentName = MTSM_DATA.STAFF_QUALITIES[ycQuality] || 'None';
+    const action = ycQuality === 1 ? 'Dismiss' : 'Downgrade';
+
+    _showConfirmDialog(
+      `${action.toUpperCase()} YOUTH COACH`,
+      `${action} your youth coach from <strong>${currentName}</strong>?`,
+      'This will reduce training speed for youth academy prospects.',
+      () => {
+        const result = MTSM_ENGINE.downgradeYouthCoach(state.currentPlayerIndex);
+        showNotification(result.msg, !result.success);
+        renderGame('academy');
+      },
+      '📉'
+    );
   }
 
   function _setYouthTraining(idx, skill) {
     const state = MTSM_ENGINE.getState();
     const hpIdx = state.currentPlayerIndex;
     if (state.youthAcademy && state.youthAcademy[hpIdx] && state.youthAcademy[hpIdx][idx]) {
-      state.youthAcademy[hpIdx][idx].training = skill || null;
+      const player = state.youthAcademy[hpIdx][idx];
+      player.userTraining = skill || null;
+      player.training = skill || player.training;
     }
     renderGame('academy');
+  }
+
+  function _upgradeYouthAsstCoach() {
+    const state = MTSM_ENGINE.getState();
+    const result = MTSM_ENGINE.upgradeYouthAssistantCoach(state.currentPlayerIndex);
+    showNotification(result.msg, !result.success);
+    renderGame('academy');
+  }
+
+  function _downgradeYouthAsstCoach() {
+    const state = MTSM_ENGINE.getState();
+    const ad = state.youthAcademyData ? state.youthAcademyData[state.currentPlayerIndex] : null;
+    const currentName = ad ? MTSM_DATA.ASST_COACH_QUALITY.levels[ad.asstCoach || 0] : 'None';
+    const action = ad && (ad.asstCoach || 0) === 1 ? 'Dismiss' : 'Downgrade';
+
+    _showConfirmDialog(
+      `${action.toUpperCase()} YOUTH ASSISTANT COACH`,
+      `${action} your Youth Assistant Coach from <strong>${currentName}</strong>?`,
+      'This will reduce automatic training management for academy prospects.',
+      () => {
+        const result = MTSM_ENGINE.downgradeYouthAssistantCoach(state.currentPlayerIndex);
+        showNotification(result.msg, !result.success);
+        renderGame('academy');
+      },
+      '📉'
+    );
+  }
+
+  function _setYouthAsstCoachConfig() {
+    const state = MTSM_ENGINE.getState();
+    const target = document.getElementById('yac-target');
+    if (!target) return;
+    const result = MTSM_ENGINE.setYouthAssistantCoachConfig(
+      state.currentPlayerIndex,
+      parseInt(target.value) || 99
+    );
+    if (!result.success) showNotification(result.msg, true);
   }
 
   // ===== CUP =====
@@ -1583,6 +1864,12 @@ const MTSM_UI = (() => {
 
   function renderStaff() {
     const team = MTSM_ENGINE.getCurrentHumanTeam();
+    const state = MTSM_ENGINE.getState();
+    const hpIdx = state.currentPlayerIndex;
+    const ac = (state.assistantCoachData && state.assistantCoachData[hpIdx]) || { quality: 0, targetLevel: 99 };
+    const acQuality = ac.quality || 0;
+    const acLevelName = MTSM_DATA.ASST_COACH_QUALITY.levels[acQuality];
+    const acWage = MTSM_DATA.ASST_COACH_QUALITY.costs[acQuality];
 
     return `
       <div class="panel-header">👔 STAFF</div>
@@ -1607,8 +1894,43 @@ const MTSM_UI = (() => {
           </div>
         `;
       }).join('')}
+
+      <div class="staff-card" style="margin-top:12px;flex-direction:column;align-items:stretch;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <div>
+            <div class="role">Assistant Coach</div>
+            <div class="quality">${acLevelName}</div>
+            <div class="text-muted" style="font-size:12px;">${acQuality > 0 ? `Wage: £${acWage.toLocaleString()}/week — Auto-manages player training` : 'Hire to automatically manage player training focus'}</div>
+          </div>
+          <div class="btn-group">
+            <button class="btn btn-small" onclick="MTSM_UI._upgradeAsstCoach()" ${acQuality >= 4 ? 'disabled style="opacity:0.3"' : ''}>
+              ${acQuality === 0 ? 'Hire' : 'Upgrade'}
+            </button>
+            ${acQuality > 0 ? `
+              <button class="btn btn-small btn-danger" onclick="MTSM_UI._downgradeAsstCoach()">
+                ${acQuality === 1 ? 'Dismiss' : 'Downgrade'}
+              </button>
+            ` : ''}
+          </div>
+        </div>
+        ${acQuality > 0 ? `
+          <div style="border-top:1px solid var(--color-border);padding-top:8px;font-size:12px;">
+            <div class="text-muted" style="margin-bottom:6px;">
+              Automatically trains each player's two weakest skills individually. When a skill reaches the target level, switches to that player's next weakest skill.
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+              <label style="font-size:11px;">Target level:
+                <input type="number" id="ac-target" min="1" max="99" value="${ac.targetLevel || 99}"
+                  onchange="MTSM_UI._setAsstCoachConfig()" style="width:45px;font-size:11px;padding:2px;">
+              </label>
+            </div>
+          </div>
+        ` : ''}
+      </div>
+
       <div class="mt-4 text-muted" style="font-size:13px;">
         <strong>Coach:</strong> Improves training effectiveness<br>
+        <strong>Assistant Coach:</strong> Auto-trains each player's weakest skills individually<br>
         <strong>Scout:</strong> Finds better transfer targets<br>
         <strong>Physio:</strong> Speeds up injury recovery
       </div>
@@ -1624,9 +1946,59 @@ const MTSM_UI = (() => {
 
   function _downgradeStaff(role) {
     const team = MTSM_ENGINE.getCurrentHumanTeam();
-    const result = MTSM_ENGINE.downgradeStaff(role, team);
+    const currentQuality = MTSM_DATA.STAFF_QUALITIES[team.staff[role].quality];
+    const newQuality = team.staff[role].quality > 0 ? MTSM_DATA.STAFF_QUALITIES[team.staff[role].quality - 1] : 'None';
+
+    _showConfirmDialog(
+      `DOWNGRADE ${role.toUpperCase()}`,
+      `Downgrade your ${role} from <strong>${currentQuality}</strong> to <strong>${newQuality}</strong>?`,
+      role === 'Coach' ? 'This will reduce training effectiveness and team strength.' :
+      role === 'Scout' ? 'This will reduce your ability to find discounted players.' :
+      'This will slow down injury recovery for your players.',
+      () => {
+        const result = MTSM_ENGINE.downgradeStaff(role, team);
+        showNotification(result.msg, !result.success);
+        renderGame('staff');
+      },
+      '📉'
+    );
+  }
+
+  function _upgradeAsstCoach() {
+    const state = MTSM_ENGINE.getState();
+    const result = MTSM_ENGINE.upgradeAssistantCoach(state.currentPlayerIndex);
     showNotification(result.msg, !result.success);
     renderGame('staff');
+  }
+
+  function _downgradeAsstCoach() {
+    const state = MTSM_ENGINE.getState();
+    const ac = state.assistantCoachData ? state.assistantCoachData[state.currentPlayerIndex] : null;
+    const currentName = ac ? MTSM_DATA.ASST_COACH_QUALITY.levels[ac.quality] : 'None';
+    const action = ac && ac.quality === 1 ? 'Dismiss' : 'Downgrade';
+
+    _showConfirmDialog(
+      `${action.toUpperCase()} ASSISTANT COACH`,
+      `${action} your Assistant Coach from <strong>${currentName}</strong>?`,
+      'This will reduce automatic training management for your players.',
+      () => {
+        const result = MTSM_ENGINE.downgradeAssistantCoach(state.currentPlayerIndex);
+        showNotification(result.msg, !result.success);
+        renderGame('staff');
+      },
+      '📉'
+    );
+  }
+
+  function _setAsstCoachConfig() {
+    const state = MTSM_ENGINE.getState();
+    const target = document.getElementById('ac-target');
+    if (!target) return;
+    const result = MTSM_ENGINE.setAssistantCoachConfig(
+      state.currentPlayerIndex,
+      parseInt(target.value) || 99
+    );
+    if (!result.success) showNotification(result.msg, true);
   }
 
   // ===== GROUND =====
@@ -2043,6 +2415,47 @@ const MTSM_UI = (() => {
       _processEndOfSeason();
     } else {
       renderGame('results');
+      // Show persistent notifications for critical events
+      _checkCriticalNotifications(state);
+    }
+  }
+
+  function _checkCriticalNotifications(state) {
+    const hp = state.humanPlayers[state.currentPlayerIndex];
+    if (!hp || hp.sacked) return;
+
+    const team = MTSM_ENGINE.getCurrentHumanTeam();
+    if (!team) return;
+
+    const alerts = [];
+
+    // Board confidence warning
+    if (state.options.boardConfidence && hp.boardConfidence <= 25 && hp.boardConfidence > 10) {
+      alerts.push(`Board confidence critically low at ${hp.boardConfidence}%! You will be sacked at 10%.`);
+    }
+
+    // Bankruptcy warning
+    if (team.balance < -30000) {
+      alerts.push(`Severe debt: £${Math.abs(team.balance).toLocaleString()}! Bankruptcy (sacking) at -£50,000.`);
+    }
+
+    // Key player injuries (any player with overall >= 75)
+    const newInjuries = state.news.filter(n => n.type === 'INJURY' || (n.text && n.text.includes('injured')));
+    const injuredStars = team.players.filter(p => p.injured > 0 && p.overall >= 75);
+    if (injuredStars.length > 0) {
+      const names = injuredStars.map(p => `${p.name} (${p.overall} OVR, ${p.injured}w)`).join(', ');
+      alerts.push(`Key player${injuredStars.length > 1 ? 's' : ''} injured: ${names}`);
+    }
+
+    // Relegation danger (bottom 2 in table)
+    const table = MTSM_ENGINE.getLeagueTable(hp.division);
+    const teamIdx = table.findIndex(t => t.name === team.name);
+    if (teamIdx >= table.length - 2 && state.week >= 10) {
+      alerts.push(`Relegation danger! Currently ${teamIdx + 1}${teamIdx === table.length - 1 ? 'st' : 'nd'} from bottom in Division ${hp.division + 1}.`);
+    }
+
+    if (alerts.length > 0) {
+      showNotification(alerts.join(' | '), true, true);
     }
   }
 
@@ -2311,19 +2724,23 @@ const MTSM_UI = (() => {
   function _confirmResign(option) {
     const hp = MTSM_ENGINE.getState().humanPlayers[MTSM_ENGINE.getState().currentPlayerIndex];
     const team = MTSM_ENGINE.getCurrentHumanTeam();
-    let msg = '';
+    let title, msg, detail;
     if (option === 'retire') {
-      msg = `Are you sure you want to RETIRE from management? ${hp.name} will permanently leave ${team.name}. This cannot be undone.`;
-    } else if (option === 'restart') {
-      msg = `Are you sure you want to resign from ${team.name} and start over with a random Division 4 club?`;
+      title = 'RETIRE FROM MANAGEMENT';
+      msg = `<strong>${hp.name}</strong> will permanently leave <strong>${team.name}</strong>.`;
+      detail = 'This cannot be undone. Your managerial career will end.';
+    } else {
+      title = 'RESIGN AS MANAGER';
+      msg = `Leave <strong>${team.name}</strong> and start over with a random Division 4 club?`;
+      detail = 'You will lose your current team, squad, and finances.';
     }
-    if (confirm(msg)) {
+
+    _showConfirmDialog(title, msg, detail, () => {
       _pendingOffers = null;
       const result = MTSM_ENGINE.resignManager(MTSM_ENGINE.getState().currentPlayerIndex, option);
       if (result.success) {
         showNotification(result.msg);
         if (result.retired) {
-          // Check if any human players remain
           const remaining = MTSM_ENGINE.getState().humanPlayers.filter(h => !h.sacked);
           if (remaining.length === 0) {
             renderGameOver();
@@ -2337,14 +2754,26 @@ const MTSM_UI = (() => {
       } else {
         showNotification(result.msg, true);
       }
-    }
+    }, option === 'retire' ? '🚪' : '📋');
   }
 
   function _requestOffers() {
     const state = MTSM_ENGINE.getState();
     const hp = state.humanPlayers[state.currentPlayerIndex];
     const team = MTSM_ENGINE.getCurrentHumanTeam();
-    if (!confirm(`Resign from ${team.name} and request club offers? You will leave your current club immediately.`)) return;
+    _showConfirmDialog(
+      'RESIGN & REQUEST OFFERS',
+      `Resign from <strong>${team.name}</strong> and request club offers?`,
+      'You will leave your current club immediately and receive up to 3 offers based on your performance.',
+      () => { _doRequestOffers(); },
+      '📨'
+    );
+  }
+
+  function _doRequestOffers() {
+    const state = MTSM_ENGINE.getState();
+    const hp = state.humanPlayers[state.currentPlayerIndex];
+    const team = MTSM_ENGINE.getCurrentHumanTeam();
 
     // Leave current club first
     const oldTeam = state.divisions[hp.division].teams[hp.teamIndex];
@@ -2570,6 +2999,12 @@ const MTSM_UI = (() => {
     _upgradeYouthCoach,
     _downgradeYouthCoach,
     _setYouthTraining,
+    _upgradeAsstCoach,
+    _downgradeAsstCoach,
+    _setAsstCoachConfig,
+    _upgradeYouthAsstCoach,
+    _downgradeYouthAsstCoach,
+    _setYouthAsstCoachConfig,
     _submitBid,
     _showNegotiationModal,
     _showCounterOfferModal,
@@ -2583,7 +3018,8 @@ const MTSM_UI = (() => {
     _cancelOffers,
     _acceptApproach,
     _declineApproaches,
-    _repayLoan
+    _sortSquad,
+    _filterSquad
   };
 
 })();

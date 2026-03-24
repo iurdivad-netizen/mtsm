@@ -18,6 +18,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MULTI PSM</title>
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#00ff41">
+<link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+<link rel="apple-touch-icon" href="./icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="./style.css">
 </head>
@@ -30,5 +34,10 @@
 <script src="./engine.js"></script>
 <script src="./ui.js"></script>
 <script src="./app.js"></script>
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js');
+}
+</script>
 </body>
 </html>
