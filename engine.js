@@ -635,6 +635,7 @@ const MTSM_ENGINE = (() => {
 
   // Assistant coach: auto-assign training for players on human teams
   // Each player gets their own two skills based on their individual weakest stats
+  // Only kicks in when the player has no user-assigned training (userTraining is null)
   function applyAssistantCoachLogic() {
     if (!state.assistantCoachData) return;
     for (let i = 0; i < state.humanPlayers.length; i++) {
@@ -646,7 +647,12 @@ const MTSM_ENGINE = (() => {
       const target = ac.targetLevel || 99;
       for (const player of team.players) {
         if (player.injured > 0) continue;
-        // Always pick the two lowest skills for THIS specific player
+        // If user has manually set training, respect it — assistant coach does nothing
+        if (player.userTraining) {
+          player.training = player.userTraining;
+          continue;
+        }
+        // Auto-pick the two lowest skills for THIS specific player
         const sorted = MTSM_DATA.SKILLS.slice().sort((a, b) => player.skills[a] - player.skills[b]);
         const sk1 = sorted[0];
         const sk2 = sorted[1];
@@ -667,8 +673,40 @@ const MTSM_ENGINE = (() => {
     }
   }
 
+  // Compute what the assistant coach would auto-assign for a given player (for UI display)
+  function getAutoTraining(hpIdx, player) {
+    if (!state.assistantCoachData) return null;
+    const ac = state.assistantCoachData[hpIdx];
+    if (!ac || ac.quality <= 0) return null;
+    const target = ac.targetLevel || 99;
+    const sorted = MTSM_DATA.SKILLS.slice().sort((a, b) => player.skills[a] - player.skills[b]);
+    const sk1 = sorted[0];
+    const sk2 = sorted[1];
+    // Mirror the same logic as applyAssistantCoachLogic
+    if (player.training === sk1 && player.skills[sk1] >= target) return sk2;
+    if (player.training === sk2 && player.skills[sk2] >= target) return sk1;
+    if (!player.training || (player.training !== sk1 && player.training !== sk2)) {
+      return player.skills[sk1] <= player.skills[sk2] ? sk1 : sk2;
+    }
+    if (player.skills[sk1] >= target && player.skills[sk2] >= target) {
+      return player.skills[sk1] <= player.skills[sk2] ? sk1 : sk2;
+    }
+    return player.training;
+  }
+
   function processTraining() {
-    // Apply assistant coach auto-training before processing
+    // Sync userTraining to training for all human players
+    for (const hp of state.humanPlayers) {
+      if (hp.sacked) continue;
+      const team = state.divisions[hp.division].teams[hp.teamIndex];
+      for (const player of team.players) {
+        if (player.userTraining) {
+          player.training = player.userTraining;
+        }
+      }
+    }
+
+    // Apply assistant coach auto-training (only for players without userTraining)
     applyAssistantCoachLogic();
 
     for (let dIdx = 0; dIdx < state.divisions.length; dIdx++) {
@@ -2090,6 +2128,7 @@ const MTSM_ENGINE = (() => {
     upgradeAssistantCoach,
     downgradeAssistantCoach,
     setAssistantCoachConfig,
+    getAutoTraining,
     upgradeYouthAssistantCoach,
     downgradeYouthAssistantCoach,
     setYouthAssistantCoachConfig,
