@@ -1313,6 +1313,7 @@ const MTSM_ENGINE = (() => {
 
       state.clubHistory[i].push({
         season: state.season,
+        club: team.name,
         division: hp.division + 1,
         position: pos,
         played: team.played,
