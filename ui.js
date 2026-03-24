@@ -2141,6 +2141,40 @@ const MTSM_UI = (() => {
     const hp = state.humanPlayers[state.currentPlayerIndex];
     const team = MTSM_ENGINE.getCurrentHumanTeam();
 
+    // If manager has resigned and is looking for a club, show only pending offers
+    if (hp._lookingForClub || !team) {
+      let html = `
+        <div class="panel-header">🏢 CAREER MANAGEMENT</div>
+        <div class="mt-4" style="padding:8px;">
+          <div style="margin-bottom:16px;color:var(--color-accent);font-size:13px;">
+            ⚠ You are currently without a club.
+          </div>
+      `;
+
+      if (_pendingOffers && _pendingOffers.length > 0) {
+        html += `
+          <div class="panel-header" style="font-size:12px;">📨 CLUB OFFERS (${_pendingOffers.length})</div>
+          <div style="font-size:12px;color:var(--color-text-muted);margin:8px 0;">
+            Choose a club to manage next.
+          </div>
+          ${_renderOfferCards(_pendingOffers, 'MTSM_UI._acceptOffer')}
+          <div class="mt-4">
+            <button class="btn btn-small" onclick="MTSM_UI._cancelOffers()">✕ DECLINE ALL — Go to Division 4</button>
+          </div>
+        `;
+      } else {
+        html += `
+          <div style="font-size:12px;color:var(--color-text-muted);margin:8px 0;">
+            No offers available.
+          </div>
+          <button class="btn" onclick="MTSM_UI._cancelOffers()">Take a random Division 4 club</button>
+        `;
+      }
+
+      html += `</div>`;
+      return html;
+    }
+
     // Approach offers from other clubs (generated during season, expire after 1 week)
     const approachData = state.clubOffers && state.clubOffers[state.currentPlayerIndex];
     const approachOffers = approachData ? approachData.offers : [];
