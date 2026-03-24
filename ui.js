@@ -1768,12 +1768,16 @@ const MTSM_UI = (() => {
   function renderClubHistory() {
     const state = MTSM_ENGINE.getState();
     const hpIdx = state.currentPlayerIndex;
+    const hp = state.humanPlayers[hpIdx];
     const history = (state.clubHistory && state.clubHistory[hpIdx]) || [];
     const team = MTSM_ENGINE.getCurrentHumanTeam();
 
     // Count total trophies
     const allTrophies = history.flatMap(h => h.trophies);
     const totalTrophies = allTrophies.length;
+
+    // Count clubs managed
+    const clubsManaged = new Set(history.map(h => h.club || team.name));
 
     // Count trophies by type
     const trophyCounts = {};
@@ -1783,15 +1787,19 @@ const MTSM_UI = (() => {
 
     if (history.length === 0) {
       return `
-        <div class="panel-header">📜 CLUB HISTORY — ${team.name}</div>
+        <div class="panel-header">📜 MANAGER HISTORY — ${hp.name}</div>
         <div class="text-muted" style="padding:20px;text-align:center;">
-          No history yet. Complete a season to see your club's record here.
+          No history yet. Complete a season to see your career record here.
         </div>
       `;
     }
 
     return `
-      <div class="panel-header">📜 CLUB HISTORY — ${team.name}</div>
+      <div class="panel-header">📜 MANAGER HISTORY — ${hp.name}</div>
+      <div style="color:var(--color-text-muted);font-size:12px;margin-bottom:12px;">
+        Currently at <span style="color:var(--color-text-bright);">${team.name}</span> (Division ${hp.division + 1})
+        ${clubsManaged.size > 1 ? ` · ${clubsManaged.size} clubs managed` : ''}
+      </div>
 
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:20px;">
         <div>
@@ -1799,7 +1807,7 @@ const MTSM_UI = (() => {
           <div class="text-accent" style="font-size:32px;font-family:var(--font-display);">🏆 ${totalTrophies}</div>
         </div>
         <div>
-          <div class="text-muted" style="font-size:12px;">SEASONS PLAYED</div>
+          <div class="text-muted" style="font-size:12px;">SEASONS MANAGED</div>
           <div style="font-size:28px;font-family:var(--font-display);">${history.length}</div>
         </div>
         <div>
@@ -1835,7 +1843,7 @@ const MTSM_UI = (() => {
         <table class="data-table">
           <thead>
             <tr>
-              <th>Season</th><th>Div</th><th>Pos</th><th>P</th><th>W</th><th>D</th><th>L</th>
+              <th>Season</th><th>Club</th><th>Div</th><th>Pos</th><th>P</th><th>W</th><th>D</th><th>L</th>
               <th>GF</th><th>GA</th><th>GD</th><th>Pts</th><th>Trophies</th>
             </tr>
           </thead>
@@ -1845,6 +1853,7 @@ const MTSM_UI = (() => {
               return `
                 <tr>
                   <td class="num text-accent">${h.season}</td>
+                  <td style="font-size:11px;white-space:nowrap;">${h.club || team.name}</td>
                   <td class="num">${h.division}</td>
                   <td class="num">${h.position}${ordinal(h.position)}</td>
                   <td class="num">${h.played}</td>
