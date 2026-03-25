@@ -2274,8 +2274,8 @@ const MTSM_UI = (() => {
     const history = (state.clubHistory && state.clubHistory[hpIdx]) || [];
     const team = MTSM_ENGINE.getCurrentHumanTeam();
 
-    // Count total trophies
-    const allTrophies = history.flatMap(h => h.trophies);
+    // Count total trophies (guard against old saves missing trophies field)
+    const allTrophies = history.flatMap(h => h.trophies || []);
     const totalTrophies = allTrophies.length;
 
     // Count clubs managed
@@ -2315,8 +2315,10 @@ const MTSM_UI = (() => {
         <div>
           <div class="text-muted" style="font-size:12px;">BEST FINISH</div>
           <div style="font-size:28px;font-family:var(--font-display);">
-            ${Math.min(...history.map(h => h.position))}${ordinal(Math.min(...history.map(h => h.position)))}
-            <span class="text-muted" style="font-size:14px;">Div ${Math.min(...history.map(h => h.division))}</span>
+            ${(() => {
+              const best = [...history].sort((a, b) => a.division - b.division || a.position - b.position)[0];
+              return `${best.position}${ordinal(best.position)} <span class="text-muted" style="font-size:14px;">Div ${best.division}</span>`;
+            })()}
           </div>
         </div>
         <div>
@@ -2366,7 +2368,7 @@ const MTSM_UI = (() => {
                   <td class="num">${h.goalsAgainst}</td>
                   <td class="num">${gd > 0 ? '+' : ''}${gd}</td>
                   <td class="num">${h.points}</td>
-                  <td>${h.trophies.length > 0 ? h.trophies.map(t => `<span class="text-accent" style="font-size:12px;">🏆 ${t}</span>`).join('<br>') : '<span class="text-muted">—</span>'}</td>
+                  <td>${(h.trophies || []).length > 0 ? (h.trophies || []).map(t => `<span class="text-accent" style="font-size:12px;">🏆 ${t}</span>`).join('<br>') : '<span class="text-muted">—</span>'}</td>
                 </tr>
               `;
             }).join('')}
