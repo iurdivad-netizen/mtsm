@@ -533,6 +533,36 @@ select {
   box-shadow: var(--crt-glow);
 }
 
+.match-result.user-win {
+  border-color: var(--color-success);
+  box-shadow: 0 0 10px rgba(0, 204, 68, 0.3);
+}
+
+.match-result.user-win .score {
+  color: var(--color-success);
+  text-shadow: 0 0 8px rgba(0, 204, 68, 0.4);
+}
+
+.match-result.user-draw {
+  border-color: var(--color-text-bright);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.15);
+}
+
+.match-result.user-draw .score {
+  color: var(--color-text-bright);
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
+}
+
+.match-result.user-loss {
+  border-color: var(--color-danger);
+  box-shadow: 0 0 10px rgba(255, 51, 68, 0.3);
+}
+
+.match-result.user-loss .score {
+  color: var(--color-danger);
+  text-shadow: 0 0 8px rgba(255, 51, 68, 0.4);
+}
+
 /* ===== NEWS / EVENTS ===== */
 .news-ticker {
   border: 1px solid var(--color-border);

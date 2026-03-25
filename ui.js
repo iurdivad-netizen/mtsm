@@ -2403,8 +2403,16 @@ const MTSM_UI = (() => {
               const team = MTSM_ENGINE.getCurrentHumanTeam();
               const isHumanHome = r.isHumanMatch && r.home === team.name;
               const isHumanAway = r.isHumanMatch && r.away === team.name;
+              let resultClass = '';
+              if (r.isHumanMatch) {
+                const humanGoals = isHumanHome ? r.homeGoals : r.awayGoals;
+                const opponentGoals = isHumanHome ? r.awayGoals : r.homeGoals;
+                if (humanGoals > opponentGoals) resultClass = 'user-win';
+                else if (humanGoals < opponentGoals) resultClass = 'user-loss';
+                else resultClass = 'user-draw';
+              }
               return `
-              <div class="match-result ${r.isHumanMatch ? 'user-match' : ''}">
+              <div class="match-result ${r.isHumanMatch ? 'user-match' : ''} ${resultClass}">
                 <div class="home">${r.home}${isHumanHome ? ' ★' : ''}</div>
                 <div class="score">${r.homeGoals} - ${r.awayGoals}</div>
                 <div class="away">${r.away}${isHumanAway ? ' ★' : ''}</div>
@@ -2485,7 +2493,15 @@ const MTSM_UI = (() => {
           : (isHumanHome ? '🏠 Att: ' + r.attendance.toLocaleString() + ' Gate: +£' + r.gateIncome.toLocaleString() : '✈️ AWAY')) : ''}
       `;
       if (r.isHumanMatch) {
-        line.style.color = 'var(--color-primary)';
+        const humanGoals = isHumanHome ? r.homeGoals : r.awayGoals;
+        const opponentGoals = isHumanHome ? r.awayGoals : r.homeGoals;
+        if (humanGoals > opponentGoals) {
+          line.style.color = 'var(--color-success)';
+        } else if (humanGoals < opponentGoals) {
+          line.style.color = 'var(--color-danger)';
+        } else {
+          line.style.color = 'var(--color-text-bright)';
+        }
         line.style.fontWeight = 'bold';
       }
       vidi.appendChild(line);
