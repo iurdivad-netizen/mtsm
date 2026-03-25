@@ -126,7 +126,9 @@ const MTSM_ENGINE = (() => {
       clubHistory,
       matchLog,
       clubOffers: {},
-      assistantCoachData
+      assistantCoachData,
+      transferMarketRefreshedWeek: 0,
+      transferMarketAlert: false
     };
 
     return state;
@@ -555,13 +557,13 @@ const MTSM_ENGINE = (() => {
       }
     }
 
-    // Mid-season transfer market refresh
-    const midPoint = Math.floor(state.divisions[0].fixtures.length / 2);
-    if (state.week === midPoint && !state.midSeasonRefreshed) {
+    // Transfer market refresh every 9 weeks
+    if (state.week > 0 && state.week % 9 === 0 && state.transferMarketRefreshedWeek !== state.week) {
       const newPlayers = MTSM_DATA.generateTransferPool(30);
       state.transferPool = [...state.transferPool.slice(-150), ...newPlayers];
-      state.midSeasonRefreshed = true;
-      pushNews({ type: 'TRANSFER', text: 'The mid-season transfer window has opened with fresh players available!' });
+      state.transferMarketRefreshedWeek = state.week;
+      state.transferMarketAlert = true;
+      pushNews({ type: 'TRANSFER', text: 'The transfer market has been updated with fresh players available!' });
     }
 
     // Check if any human is bankrupt
@@ -1374,7 +1376,7 @@ const MTSM_ENGINE = (() => {
     state.season++;
     state.week = 1;
     state.seasonOver = false;
-    state.midSeasonRefreshed = false;
+    state.transferMarketRefreshedWeek = 0;
 
     // Reset cup for new season
     if (state.options.cupPrizeMoney) {
