@@ -2500,7 +2500,7 @@ const MTSM_UI = (() => {
         } else if (humanGoals < opponentGoals) {
           line.style.color = 'var(--color-danger)';
         } else {
-          line.style.color = 'var(--color-text-bright)';
+          line.style.color = 'var(--color-accent)';
         }
         line.style.fontWeight = 'bold';
       }
