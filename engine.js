@@ -159,7 +159,8 @@ const MTSM_ENGINE = (() => {
     '3-5-2': { DEF: 3, MID: 5, FWD: 2, bonus: { MID: 4 } },
     '5-3-2': { DEF: 5, MID: 3, FWD: 2, bonus: { DEF: 3 } },
     '4-5-1': { DEF: 4, MID: 5, FWD: 1, bonus: { MID: 3, DEF: 1 } },
-    '3-4-3': { DEF: 3, MID: 4, FWD: 3, bonus: { FWD: 4 } }
+    '3-4-3': { DEF: 3, MID: 4, FWD: 3, bonus: { FWD: 4 } },
+    'custom': { DEF: 0, MID: 0, FWD: 0, bonus: {}, isAuto: true }
   };
 
   // ===== MATCH SIMULATION =====
@@ -175,9 +176,47 @@ const MTSM_ENGINE = (() => {
       if (manual.length === 11) return manual;
     }
 
-    // Fallback: auto-pick best 11 by overall
-    const sorted = [...available].sort((a, b) => b.overall - a.overall);
-    return sorted.slice(0, 11);
+    // Fallback: auto-pick best 11 respecting formation if set
+    return _autoPickByFormation(available, team.formation);
+  }
+
+  // Internal helper: pick best 11 from available players, respecting formation slots if provided.
+  // Falls back to best OVR if formation is absent, 'custom', or slots can't be fully filled.
+  function _autoPickByFormation(available, formationKey) {
+    const formation = formationKey && !FORMATIONS[formationKey]?.isAuto ? FORMATIONS[formationKey] : null;
+
+    if (!formation) {
+      // Absolute best OVR — no positional constraint
+      return [...available].sort((a, b) => b.overall - a.overall).slice(0, 11);
+    }
+
+    const selected = [];
+    const usedIds = new Set();
+
+    // 1 GK
+    const bestGK = [...available].filter(p => p.position === 'GK').sort((a, b) => b.overall - a.overall)[0];
+    if (bestGK) { selected.push(bestGK); usedIds.add(bestGK.id); }
+
+    // Fill positional slots per formation
+    for (const pos of ['DEF', 'MID', 'FWD']) {
+      const needed = formation[pos] || 0;
+      [...available]
+        .filter(p => p.position === pos && !usedIds.has(p.id))
+        .sort((a, b) => b.overall - a.overall)
+        .slice(0, needed)
+        .forEach(p => { selected.push(p); usedIds.add(p.id); });
+    }
+
+    // Fill any remaining slots (formation positions under-staffed) with best available
+    if (selected.length < 11) {
+      [...available]
+        .filter(p => !usedIds.has(p.id))
+        .sort((a, b) => b.overall - a.overall)
+        .slice(0, 11 - selected.length)
+        .forEach(p => { selected.push(p); usedIds.add(p.id); });
+    }
+
+    return selected.slice(0, 11);
   }
 
   function calculateTeamStrength(team) {
@@ -1923,7 +1962,10 @@ const MTSM_ENGINE = (() => {
   function setFormation(formationName, teamObj) {
     if (!FORMATIONS[formationName]) return { success: false, msg: 'Invalid formation.' };
     teamObj.formation = formationName;
-    return { success: true, msg: `Formation set to ${formationName}.` };
+    const msg = FORMATIONS[formationName].isAuto
+      ? 'Custom (Best OVR) selected — auto-select will pick the best 11 overall.'
+      : `Formation set to ${formationName}.`;
+    return { success: true, msg };
   }
 
   // ===== SET STARTING XI =====
@@ -1949,10 +1991,30 @@ const MTSM_ENGINE = (() => {
 
   function autoSelectXI(teamObj) {
     const available = teamObj.players.filter(p => p.injured === 0);
-    const sorted = [...available].sort((a, b) => b.overall - a.overall);
-    const best11 = sorted.slice(0, 11);
+    if (available.length < 11) return { success: false, msg: 'Not enough fit players to auto-select.' };
+
+    const formationKey = teamObj.formation;
+    const isCustom = !formationKey || FORMATIONS[formationKey]?.isAuto;
+
+    if (isCustom) {
+      // Absolute best OVR: pick top 11 regardless of position, then derive a custom formation
+      const best11 = [...available].sort((a, b) => b.overall - a.overall).slice(0, 11);
+      teamObj.startingXI = best11.map(p => p.id);
+
+      const def = best11.filter(p => p.position === 'DEF').length;
+      const mid = best11.filter(p => p.position === 'MID').length;
+      const fwd = best11.filter(p => p.position === 'FWD').length;
+      // Store computed shape on the custom formation entry so UI can display it
+      FORMATIONS['custom'] = { DEF: def, MID: mid, FWD: fwd, bonus: {}, isAuto: true };
+      teamObj.formation = 'custom';
+
+      return { success: true, msg: `Auto-selected best XI by overall (${def}-${mid}-${fwd}).` };
+    }
+
+    // Formation-based selection
+    const best11 = _autoPickByFormation(available, formationKey);
     teamObj.startingXI = best11.map(p => p.id);
-    return { success: true, msg: 'Auto-selected best 11 players.' };
+    return { success: true, msg: `Auto-selected best XI for ${formationKey}.` };
   }
 
   // ===== CAREER: RESIGN & CLUB OFFERS =====

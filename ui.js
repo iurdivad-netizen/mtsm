@@ -1186,6 +1186,7 @@ const MTSM_UI = (() => {
       const currentFormation = team.formation || '4-4-2';
       const formations = MTSM_ENGINE.FORMATIONS;
       const formationDescriptions = {
+        'custom': 'Best OVR. Picks top 11 regardless of position.',
         '4-4-2': 'Balanced. No bonus — the safe default.',
         '4-3-3': 'Attacking width. +3 with enough forwards.',
         '3-5-2': 'Midfield overload. +4 midfield bonus.',
@@ -1201,7 +1202,13 @@ const MTSM_UI = (() => {
       startingPlayers_.forEach(p => { posCountsForBonus[p.position] = (posCountsForBonus[p.position] || 0) + 1; });
 
       let bonusDetailHtml = '';
-      if (activeBonusEntries.length === 0) {
+      if (activeFormation.isAuto) {
+        const cf = activeFormation;
+        const shape = cf.DEF || cf.MID || cf.FWD
+          ? `${cf.DEF}-${cf.MID}-${cf.FWD}`
+          : 'not yet derived';
+        bonusDetailHtml = `<div class="no-bonus">Custom formation (${shape}) — picks best OVR XI. No position bonuses.</div>`;
+      } else if (activeBonusEntries.length === 0) {
         bonusDetailHtml = `<div class="no-bonus">No position bonuses — balanced default formation.</div>`;
       } else {
         bonusDetailHtml = activeBonusEntries.map(([pos, bonus]) => {
@@ -1232,26 +1239,26 @@ const MTSM_UI = (() => {
         <div style="font-family:var(--font-display);font-size:10px;color:var(--color-accent);margin-bottom:8px;">FORMATION</div>
         <div class="formation-grid mb-4">
           ${Object.keys(formations).map(f => {
-            const bonusEntries = Object.entries(formations[f].bonus || {});
+            const fData = formations[f];
+            const isCustom = !!fData.isAuto;
+            const bonusEntries = Object.entries(fData.bonus || {});
             const bonusSummary = bonusEntries.length === 0 ? 'No bonus' :
-              bonusEntries.map(([pos, val]) => `+${val} if ${formations[f][pos]}+ ${pos}`).join(', ');
+              bonusEntries.map(([pos, val]) => `+${val} if ${fData[pos]}+ ${pos}`).join(', ');
+            const layoutStr = isCustom && fData.DEF === 0 && fData.MID === 0 && fData.FWD === 0
+              ? '<span class="pos-gk">GK</span><span class="pos-def">? DEF</span><span class="pos-mid">? MID</span><span class="pos-fwd">? FWD</span>'
+              : `<span class="pos-gk">GK</span><span class="pos-def">${fData.DEF} DEF</span><span class="pos-mid">${fData.MID} MID</span><span class="pos-fwd">${fData.FWD} FWD</span>`;
             return `
-            <div class="formation-card ${f === currentFormation ? 'formation-active' : ''}" onclick="MTSM_UI._setFormation('${f}')">
-              <div class="formation-name">${f}</div>
-              <div class="formation-layout">
-                <span class="pos-gk">GK</span>
-                <span class="pos-def">${formations[f].DEF} DEF</span>
-                <span class="pos-mid">${formations[f].MID} MID</span>
-                <span class="pos-fwd">${formations[f].FWD} FWD</span>
-              </div>
-              <div class="formation-desc">${formationDescriptions[f]}</div>
-              <div style="font-size:11px;color:var(--color-text-muted);margin-top:2px;">Bonus: ${bonusSummary}</div>
+            <div class="formation-card ${f === currentFormation ? 'formation-active' : ''}${isCustom ? ' formation-custom' : ''}" onclick="MTSM_UI._setFormation('${f}')">
+              <div class="formation-name">${isCustom ? 'CUSTOM' : f}</div>
+              <div class="formation-layout">${layoutStr}</div>
+              <div class="formation-desc">${formationDescriptions[f] || ''}</div>
+              <div style="font-size:11px;color:var(--color-text-muted);margin-top:2px;">${isCustom ? 'Derived from best OVR XI' : `Bonus: ${bonusSummary}`}</div>
               ${f === currentFormation ? '<div class="text-accent" style="font-size:10px;font-family:var(--font-display);margin-top:4px;">SELECTED</div>' : ''}
             </div>
           `}).join('')}
         </div>
         <div class="formation-bonus-info mb-4">
-          <div style="font-family:var(--font-display);font-size:9px;color:var(--color-accent);margin-bottom:4px;">STRENGTH BONUSES FOR ${currentFormation}</div>
+          <div style="font-family:var(--font-display);font-size:9px;color:var(--color-accent);margin-bottom:4px;">STRENGTH BONUSES FOR ${activeFormation.isAuto ? 'CUSTOM (BEST OVR)' : currentFormation}</div>
           ${bonusDetailHtml}
           <div style="border-top:1px solid var(--color-border);margin-top:4px;padding-top:4px;font-family:var(--font-display);font-size:9px;color:var(--color-accent);">UNIVERSAL BONUSES</div>
           ${midBonusHtml}
@@ -1280,7 +1287,13 @@ const MTSM_UI = (() => {
       </div>
 
       <div class="btn-group mb-4">
-        <button class="btn btn-small" onclick="MTSM_UI._autoSelectXI()">AUTO-SELECT BEST XI</button>
+        ${(() => {
+          const formations = MTSM_ENGINE.FORMATIONS;
+          const fKey = team.formation;
+          const isFormationBased = state.options.formationStrategy && fKey && formations[fKey] && !formations[fKey].isAuto;
+          const btnLabel = isFormationBased ? `AUTO-SELECT BEST XI (${fKey})` : 'AUTO-SELECT BEST XI (OVR)';
+          return `<button class="btn btn-small" onclick="MTSM_UI._autoSelectXI()">${btnLabel}</button>`;
+        })()}
         <button class="btn btn-small" onclick="MTSM_UI._clearXI()">CLEAR ALL</button>
         <button class="btn btn-small btn-accent" onclick="MTSM_UI._confirmXI()" ${selectedCount !== 11 ? 'disabled style="opacity:0.4"' : ''}>CONFIRM XI</button>
       </div>
