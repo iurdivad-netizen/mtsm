@@ -11,6 +11,9 @@ const MTSM_UI = (() => {
   let _squadSort = { column: 'position', direction: 'asc' };
   let _squadSearch = '';
 
+  // Training sorting state
+  let _trainingSort = { column: 'position', direction: 'asc' };
+
   // ===== CONFIRMATION DIALOG =====
   function _showConfirmDialog(title, message, detail, onConfirm, icon = '⚠️') {
     const overlay = document.createElement('div');
@@ -653,6 +656,16 @@ const MTSM_UI = (() => {
     `;
   }
 
+  function _sortTraining(column) {
+    if (_trainingSort.column === column) {
+      _trainingSort.direction = _trainingSort.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+      _trainingSort.column = column;
+      _trainingSort.direction = column === 'name' || column === 'position' ? 'asc' : 'desc';
+    }
+    renderGame('training');
+  }
+
   // ===== TRAINING =====
   function renderTraining() {
     const team = MTSM_ENGINE.getCurrentHumanTeam();
@@ -660,6 +673,30 @@ const MTSM_UI = (() => {
     const hpIdx = state.currentPlayerIndex;
     const coachQ = MTSM_DATA.STAFF_QUALITIES[team.staff.Coach.quality];
     const hasAsstCoach = state.assistantCoachData && state.assistantCoachData[hpIdx] && state.assistantCoachData[hpIdx].quality > 0;
+
+    // Sort players
+    const positions = ['GK', 'DEF', 'MID', 'FWD'];
+    const tCol = _trainingSort.column;
+    const tDir = _trainingSort.direction === 'asc' ? 1 : -1;
+    const sortedPlayers = [...team.players].sort((a, b) => {
+      let va, vb;
+      if (tCol === 'position') {
+        va = positions.indexOf(a.position); vb = positions.indexOf(b.position);
+      } else if (tCol === 'name') {
+        return tDir * a.name.localeCompare(b.name);
+      } else if (tCol === 'overall') {
+        va = a.overall; vb = b.overall;
+      } else if (MTSM_DATA.SKILLS.includes(tCol)) {
+        va = a.skills[tCol]; vb = b.skills[tCol];
+      } else {
+        va = positions.indexOf(a.position); vb = positions.indexOf(b.position);
+      }
+      if (va === vb) return b.overall - a.overall;
+      return tDir * (va - vb);
+    });
+
+    const tSortIcon = (c) => _trainingSort.column === c ? (_trainingSort.direction === 'asc' ? ' ▲' : ' ▼') : '';
+    const tSortClass = (c) => `sortable ${_trainingSort.column === c ? 'sort-active' : ''}`;
 
     return `
       <div class="panel-header">🏋️ TRAINING — Coach: ${coachQ}</div>
@@ -676,19 +713,22 @@ const MTSM_UI = (() => {
             <option value="_none">— Clear —</option>
           </select>
         `).join('')}
+        <span class="text-muted" style="font-size:12px;margin-left:8px;">Click column headers to sort</span>
       </div>
       <div style="overflow-x:auto;">
         <table class="data-table">
           <thead>
             <tr>
-              <th>Player</th><th>Pos</th><th>Ovr</th>
-              ${MTSM_DATA.SKILLS.map(s => `<th>${s.substring(0, 3)}</th>`).join('')}
+              <th class="${tSortClass('name')}" onclick="MTSM_UI._sortTraining('name')">Player${tSortIcon('name')}</th>
+              <th class="${tSortClass('position')}" onclick="MTSM_UI._sortTraining('position')">Pos${tSortIcon('position')}</th>
+              <th class="${tSortClass('overall')}" onclick="MTSM_UI._sortTraining('overall')">Ovr${tSortIcon('overall')}</th>
+              ${MTSM_DATA.SKILLS.map(s => `<th class="${tSortClass(s)}" onclick="MTSM_UI._sortTraining('${s}')">${s.substring(0, 3)}${tSortIcon(s)}</th>`).join('')}
               <th>Your Choice</th>
               ${hasAsstCoach ? '<th>Active</th>' : ''}
             </tr>
           </thead>
           <tbody>
-            ${team.players.map(p => {
+            ${sortedPlayers.map(p => {
               const autoSkill = hasAsstCoach ? MTSM_ENGINE.getAutoTraining(hpIdx, p) : null;
               const acTarget = hasAsstCoach ? (state.assistantCoachData[hpIdx].targetLevel || 99) : 99;
               const userMaxed = p.userTraining && p.skills[p.userTraining] >= acTarget;
@@ -3148,6 +3188,7 @@ const MTSM_UI = (() => {
     _declineApproaches,
     _sortSquad,
     _filterSquad,
+    _sortTraining,
     _repayLoan,
     _showLoanTermsModal,
     _confirmLoanTerms,
