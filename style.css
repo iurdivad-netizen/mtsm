@@ -544,13 +544,13 @@ select {
 }
 
 .match-result.user-draw {
-  border-color: var(--color-text-bright);
-  box-shadow: 0 0 10px rgba(255, 255, 255, 0.15);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 10px rgba(255, 204, 0, 0.3);
 }
 
 .match-result.user-draw .score {
-  color: var(--color-text-bright);
-  text-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
+  color: var(--color-accent);
+  text-shadow: 0 0 8px rgba(255, 204, 0, 0.4);
 }
 
 .match-result.user-loss {
