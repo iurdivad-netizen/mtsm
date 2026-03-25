@@ -423,7 +423,7 @@ const MTSM_UI = (() => {
           </button>
           ${state.options.cupPrizeMoney ? `
             <button class="icon-btn ${subView === 'cup' ? 'active' : ''}" onclick="MTSM_UI.renderGame('cup')">
-              <span class="icon">🥇</span>Cup
+              <span class="icon">🥇</span>Division Cup
             </button>
             <button class="icon-btn ${subView === 'nationalCup' ? 'active' : ''}" onclick="MTSM_UI.renderGame('nationalCup')">
               <span class="icon">🏅</span>Nat. Cup
@@ -1645,6 +1645,25 @@ const MTSM_UI = (() => {
 
     if (divCup.finished && divCup.winner) {
       cupHtml += `<div class="text-center" style="padding:16px;"><div style="font-size:40px;">\ud83c\udfc6</div><div class="text-accent" style="font-size:18px;">${divCup.winner}</div><div class="text-muted">Cup Winners!</div></div>`;
+    }
+
+    // Human team status
+    const team = MTSM_ENGINE.getCurrentHumanTeam();
+    const teamName = team ? team.name : '';
+    const isEliminated = divCup.eliminated && divCup.eliminated.includes(teamName);
+    const isWinner = divCup.winner === teamName;
+    if (teamName) {
+      cupHtml += `<div style="margin-bottom:12px;padding:8px;border:1px solid var(--color-border);border-radius:4px;font-size:13px;">`;
+      if (isWinner) {
+        cupHtml += `<span class="text-success">Your team won the Division Cup!</span>`;
+      } else if (isEliminated) {
+        cupHtml += `<span class="text-danger">${teamName} has been eliminated.</span>`;
+      } else if (divCup.finished) {
+        cupHtml += `<span class="text-muted">${teamName} was eliminated.</span>`;
+      } else {
+        cupHtml += `<span class="text-success">${teamName} is still in the Division Cup.</span>`;
+      }
+      cupHtml += `</div>`;
     }
 
     // Show each round's results
