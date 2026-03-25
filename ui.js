@@ -2542,6 +2542,12 @@ const MTSM_UI = (() => {
       alerts.push(`Relegation danger! Currently ${teamIdx + 1}${teamIdx === table.length - 1 ? 'st' : 'nd'} from bottom in Division ${hp.division + 1}.`);
     }
 
+    // Transfer market update alert (every 9 weeks)
+    if (state.transferMarketAlert) {
+      alerts.push('Transfer Market Updated! New players are available on the transfer market.');
+      state.transferMarketAlert = false;
+    }
+
     if (alerts.length > 0) {
       showNotification(alerts.join(' | '), true, true);
     }
