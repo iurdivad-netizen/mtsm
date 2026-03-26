@@ -300,8 +300,8 @@ const MTSM_ENGINE = (() => {
     const homeStr = calculateTeamStrength(homeTeam, homeOpts);
     const awayStr = calculateTeamStrength(awayTeam, awayOpts);
 
-    // Home advantage
-    const homeAdv = 5;
+    // Home advantage (not applied in cup matches)
+    const homeAdv = (options && options.isCup) ? 0 : 5;
     const homeFinal = homeStr + homeAdv;
     const awayFinal = awayStr;
 
