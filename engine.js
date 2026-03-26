@@ -586,7 +586,9 @@ const MTSM_ENGINE = (() => {
           }
           if (Math.random() < trainChance) {
             const oldSkill = player.skills[skill];
-            player.skills[skill] = Math.min(99, player.skills[skill] + 1);
+            // Rare breakthrough: 7% chance to gain +2 instead of +1
+            const gain = Math.random() < 0.07 ? 2 : 1;
+            player.skills[skill] = Math.min(99, player.skills[skill] + gain);
             player.overall = Math.round(
               Object.values(player.skills).reduce((a, b) => a + b, 0) / MTSM_DATA.SKILLS.length
             );
@@ -855,7 +857,11 @@ const MTSM_ENGINE = (() => {
                 trainChance += 0.1; // extra youth boost
               }
             }
-            const improvement = Math.random() < trainChance ? 1 : 0;
+            let improvement = Math.random() < trainChance ? 1 : 0;
+            // Rare breakthrough: 7% chance to gain +2 instead of +1 when training succeeds
+            if (improvement === 1 && Math.random() < 0.07) {
+              improvement = 2;
+            }
             const decline = Math.random() < 0.08 ? 1 : 0;
             player.skills[player.training] = Math.min(99, player.skills[player.training] + improvement);
             // Slight decline in untrained skills
@@ -875,7 +881,8 @@ const MTSM_ENGINE = (() => {
             player.value = Math.round(player.overall * 10000 * ageMult * divMult * youthMult);
             // Log training news for human teams
             if (team.isHuman && improvement > 0) {
-              pushNews({ type: 'TRAINING', text: `${player.name} improved ${player.training} (${oldSkill}→${player.skills[player.training]}).` });
+              const breakthroughMsg = improvement === 2 ? ' Breakthrough training week!' : '';
+              pushNews({ type: 'TRAINING', text: `${player.name} improved ${player.training} (${oldSkill}→${player.skills[player.training]}).${breakthroughMsg}` });
             }
           }
         }
