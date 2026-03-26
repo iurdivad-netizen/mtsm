@@ -580,7 +580,10 @@ const MTSM_ENGINE = (() => {
         for (const player of academy) {
           // Youth coach trains targeted skill if set, otherwise random
           const skill = player.training || MTSM_DATA.pick(MTSM_DATA.SKILLS);
-          const trainChance = 0.15 + coachBonus + asstBonus;
+          let trainChance = 0.15 + coachBonus + asstBonus;
+          if (player.potential) {
+            trainChance += (player.potential - 50) / 200;
+          }
           if (Math.random() < trainChance) {
             const oldSkill = player.skills[skill];
             player.skills[skill] = Math.min(99, player.skills[skill] + 1);
