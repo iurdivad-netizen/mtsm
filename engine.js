@@ -262,6 +262,26 @@ const MTSM_ENGINE = (() => {
     const avgMorale = starting.reduce((s, p) => s + p.morale, 0) / starting.length;
     strength += (avgMorale - 50) / 10;
 
+    // Form & momentum: recent results influence confidence
+    if (team.form && team.form.length > 0) {
+      const wins = team.form.filter(f => f === 'W').length;
+      const losses = team.form.filter(f => f === 'L').length;
+      const formLen = team.form.length;
+
+      // Base form bonus: +1 per win, -1 per loss (max ±5)
+      strength += wins - losses;
+
+      // Streak bonus: consecutive same results at the tail amplify the effect
+      let streak = 1;
+      for (let i = formLen - 2; i >= 0; i--) {
+        if (team.form[i] === team.form[formLen - 1]) streak++;
+        else break;
+      }
+      const lastResult = team.form[formLen - 1];
+      if (lastResult === 'W' && streak >= 3) strength += streak; // hot streak
+      if (lastResult === 'L' && streak >= 3) strength -= streak; // slump
+    }
+
     return Math.max(10, strength);
   }
 
