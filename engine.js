@@ -1654,16 +1654,16 @@ const MTSM_ENGINE = (() => {
           if (result.homeGoals === result.awayGoals) result.homeGoals++; // force a result
         }
 
-        // Cup attendance & gate income (75% home, 25% away)
+        // Cup attendance & gate income (50/50 split)
         const attendance = calculateAttendance(homeTeam, d);
         const ticketPrice = d === 0 ? 25 : d === 1 ? 18 : d === 2 ? 12 : 8;
         const gateIncome = attendance * ticketPrice;
-        const homeShare = Math.floor(gateIncome * 0.75);
-        const awayShare = Math.floor(gateIncome * 0.25);
+        const homeShare = Math.floor(gateIncome * 0.5);
+        const awayShare = Math.floor(gateIncome * 0.5);
         homeTeam.balance += homeShare;
         awayTeam.balance += awayShare;
-        recordFinance(homeTeam, 'income', homeShare, `Div ${d + 1} Cup gate (home 75%)`);
-        recordFinance(awayTeam, 'income', awayShare, `Div ${d + 1} Cup gate (away 25%)`);
+        recordFinance(homeTeam, 'income', homeShare, `Div ${d + 1} Cup gate (50%)`);
+        recordFinance(awayTeam, 'income', awayShare, `Div ${d + 1} Cup gate (50%)`);
 
         const winner = result.homeGoals > result.awayGoals ? match.home : match.away;
         const loser = winner === match.home ? match.away : match.home;
@@ -1833,17 +1833,17 @@ const MTSM_ENGINE = (() => {
         if (result.homeGoals === result.awayGoals) result.homeGoals++;
       }
 
-      // Cup attendance & gate income (75% home, 25% away)
+      // Cup attendance & gate income (50/50 split)
       const homeDivIdx = findTeamDivisionIndex(match.home);
       const attendance = calculateAttendance(homeTeam, homeDivIdx);
       const ticketPrice = homeDivIdx === 0 ? 25 : homeDivIdx === 1 ? 18 : homeDivIdx === 2 ? 12 : 8;
       const gateIncome = attendance * ticketPrice;
-      const homeShare = Math.floor(gateIncome * 0.75);
-      const awayShare = Math.floor(gateIncome * 0.25);
+      const homeShare = Math.floor(gateIncome * 0.5);
+      const awayShare = Math.floor(gateIncome * 0.5);
       homeTeam.balance += homeShare;
       awayTeam.balance += awayShare;
-      recordFinance(homeTeam, 'income', homeShare, `${cupName} gate (home 75%)`);
-      recordFinance(awayTeam, 'income', awayShare, `${cupName} gate (away 25%)`);
+      recordFinance(homeTeam, 'income', homeShare, `${cupName} gate (50%)`);
+      recordFinance(awayTeam, 'income', awayShare, `${cupName} gate (50%)`);
 
       const winner = result.homeGoals > result.awayGoals ? match.home : match.away;
       const loser = winner === match.home ? match.away : match.home;
