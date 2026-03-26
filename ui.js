@@ -1760,6 +1760,12 @@ const MTSM_UI = (() => {
       html += `</div>`;
     }
 
+    // Helper to get division label for a team
+    const getDivLabel = (teamName) => {
+      const divIdx = MTSM_ENGINE.findTeamDivisionIndex(teamName);
+      return `<span class="text-muted" style="font-size:10px;opacity:0.7;"> (D${divIdx + 1})</span>`;
+    };
+
     // Show each round's results
     for (let r = 0; r < cup.rounds.length; r++) {
       const round = cup.rounds[r];
@@ -1771,21 +1777,25 @@ const MTSM_UI = (() => {
           const result = round.results.find(res => res.home === m.home && res.away === m.away);
           if (result) {
             const isHuman = result.home === teamName || result.away === teamName;
+            const homeDivLabel = result.homeDivision ? `<span class="text-muted" style="font-size:10px;opacity:0.7;"> (D${result.homeDivision})</span>` : getDivLabel(result.home);
+            const awayDivLabel = result.away === 'BYE' ? '' : (result.awayDivision ? `<span class="text-muted" style="font-size:10px;opacity:0.7;"> (D${result.awayDivision})</span>` : getDivLabel(result.away));
             html += `
               <div class="match-result ${isHuman ? 'user-match' : ''}">
-                <div class="home ${result.winner === result.home ? 'text-accent' : ''}">${result.home}</div>
+                <div class="home ${result.winner === result.home ? 'text-accent' : ''}">${result.home}${homeDivLabel}</div>
                 <div class="score">${result.homeGoals} - ${result.awayGoals}</div>
-                <div class="away ${result.winner === result.away ? 'text-accent' : ''}">${result.away}</div>
+                <div class="away ${result.winner === result.away ? 'text-accent' : ''}">${result.away}${awayDivLabel}</div>
               </div>
             `;
           }
         } else {
           const isHuman = m.home === teamName || m.away === teamName;
+          const homeDivLabel = getDivLabel(m.home);
+          const awayDivLabel = m.away ? getDivLabel(m.away) : '';
           html += `
             <div class="match-result ${isHuman ? 'user-match' : ''}">
-              <div class="home">${m.home}</div>
+              <div class="home">${m.home}${homeDivLabel}</div>
               <div class="score">vs</div>
-              <div class="away">${m.away || 'BYE'}</div>
+              <div class="away">${m.away || 'BYE'}${awayDivLabel}</div>
             </div>
           `;
         }
@@ -2485,11 +2495,13 @@ const MTSM_UI = (() => {
                 else if (humanGoals < opponentGoals) resultClass = 'user-loss';
                 else resultClass = 'user-draw';
               }
+              const homeDivTag = divRes.cupName && r.homeDivision ? `<span class="text-muted" style="font-size:10px;opacity:0.7;"> (D${r.homeDivision})</span>` : '';
+              const awayDivTag = divRes.cupName && r.awayDivision ? `<span class="text-muted" style="font-size:10px;opacity:0.7;"> (D${r.awayDivision})</span>` : '';
               return `
               <div class="match-result ${r.isHumanMatch ? 'user-match' : ''} ${resultClass}">
-                <div class="home">${r.home}${isHumanHome ? ' ★' : ''}</div>
+                <div class="home">${r.home}${homeDivTag}${isHumanHome ? ' ★' : ''}</div>
                 <div class="score">${r.homeGoals} - ${r.awayGoals}</div>
-                <div class="away">${r.away}${isHumanAway ? ' ★' : ''}</div>
+                <div class="away">${r.away}${awayDivTag}${isHumanAway ? ' ★' : ''}</div>
               </div>
               ${r.isHumanMatch ? `<div style="font-size:12px;padding:2px 8px 8px;color:var(--color-muted);display:flex;justify-content:space-between;">
                 <span>${isHumanHome ? '🏠 HOME' : '✈️ AWAY'}</span>
@@ -2559,9 +2571,11 @@ const MTSM_UI = (() => {
       const humanGateIncome = r.cupName
         ? Math.floor(r.gateIncome * (isHumanHome ? 0.75 : 0.25))
         : r.gateIncome;
+      const homeDiv = r.cupName && r.homeDivision ? ` (D${r.homeDivision})` : '';
+      const awayDiv = r.cupName && r.awayDivision ? ` (D${r.awayDivision})` : '';
       line.innerHTML = `
         <span class="text-muted">[${divLabel}]</span>
-        ${r.home} <span class="team-score">${r.homeGoals}</span> — <span class="team-score">${r.awayGoals}</span> ${r.away}
+        ${r.home}${homeDiv} <span class="team-score">${r.homeGoals}</span> — <span class="team-score">${r.awayGoals}</span> ${r.away}${awayDiv}
         ${r.isHumanMatch ? ' ★ ' + (r.cupName
           ? '🏆 Att: ' + r.attendance.toLocaleString() + ' Gate: +£' + humanGateIncome.toLocaleString() + ' (' + (isHumanHome ? '75%' : '25%') + ')'
           : (isHumanHome ? '🏠 Att: ' + r.attendance.toLocaleString() + ' Gate: +£' + r.gateIncome.toLocaleString() : '✈️ AWAY')) : ''}

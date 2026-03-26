@@ -1848,18 +1848,14 @@ const MTSM_ENGINE = (() => {
       const winner = result.homeGoals > result.awayGoals ? match.home : match.away;
       const loser = winner === match.home ? match.away : match.home;
       match.played = true;
-
-      // Track cup run wins for momentum
-      const winnerTeam = findTeamByName(winner);
-      if (winnerTeam) {
-        winnerTeam.cupRunWins = (winnerTeam.cupRunWins || 0) + 1;
-      }
-
+      const awayDivIdx = findTeamDivisionIndex(match.away);
       const cupResult = {
         home: match.home,
         away: match.away,
         homeGoals: result.homeGoals,
         awayGoals: result.awayGoals,
+        homeDivision: homeDivIdx + 1,
+        awayDivision: awayDivIdx + 1,
         attendance,
         gateIncome,
         winner,
@@ -2471,6 +2467,7 @@ const MTSM_ENGINE = (() => {
     downgradeYouthAssistantCoach,
     setYouthAssistantCoachConfig,
     FORMATIONS,
+    findTeamDivisionIndex,
     CUP_PRIZE_MONEY,
     NATIONAL_CUP_PRIZE_MONEY,
     LEAGUE_TROPHY_PRIZE_MONEY,
