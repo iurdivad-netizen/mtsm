@@ -219,7 +219,7 @@ const MTSM_ENGINE = (() => {
     return selected.slice(0, 11);
   }
 
-  function calculateTeamStrength(team) {
+  function calculateTeamStrength(team, options) {
     const available = team.players.filter(p => p.injured === 0);
     if (available.length < 11) return 30; // penalty for insufficient players
 
@@ -282,12 +282,23 @@ const MTSM_ENGINE = (() => {
       if (lastResult === 'L' && streak >= 3) strength -= streak; // slump
     }
 
+    // Cup run bonus: lower division teams gain momentum from each cup win
+    // Simulates the real-life "giant-killing" effect where underdogs grow in belief
+    if (options && options.isCup && team.cupRunWins > 0) {
+      const divIdx = options.divisionIndex !== undefined ? options.divisionIndex : 3;
+      // Division 4 gets +3 per cup win, Div 3 gets +2, Div 2 gets +1, Div 1 gets 0
+      const perWinBonus = Math.max(0, 3 - divIdx);
+      strength += team.cupRunWins * perWinBonus;
+    }
+
     return Math.max(10, strength);
   }
 
-  function simulateMatch(homeTeam, awayTeam) {
-    const homeStr = calculateTeamStrength(homeTeam);
-    const awayStr = calculateTeamStrength(awayTeam);
+  function simulateMatch(homeTeam, awayTeam, options) {
+    const homeOpts = options ? { ...options, divisionIndex: options.divisionIndex } : undefined;
+    const awayOpts = options ? { ...options, divisionIndex: options.awayDivisionIndex } : undefined;
+    const homeStr = calculateTeamStrength(homeTeam, homeOpts);
+    const awayStr = calculateTeamStrength(awayTeam, awayOpts);
 
     // Home advantage
     const homeAdv = 5;
@@ -1435,6 +1446,7 @@ const MTSM_ENGINE = (() => {
         team.goalsAgainst = 0;
         team.played = 0;
         team.form = [];
+        team.cupRunWins = 0;
       }
     }
 
@@ -1630,7 +1642,11 @@ const MTSM_ENGINE = (() => {
         const awayTeam = state.divisions[d].teams.find(t => t.name === match.away);
         if (!homeTeam || !awayTeam) continue;
 
-        let result = simulateMatch(homeTeam, awayTeam);
+        let result = simulateMatch(homeTeam, awayTeam, {
+          isCup: true,
+          divisionIndex: d,
+          awayDivisionIndex: d
+        });
         // Cup match: if draw, away goals / extra time (just replay with slight home boost)
         if (result.homeGoals === result.awayGoals) {
           result.homeGoals += Math.random() < 0.55 ? 1 : 0;
@@ -1652,6 +1668,13 @@ const MTSM_ENGINE = (() => {
         const winner = result.homeGoals > result.awayGoals ? match.home : match.away;
         const loser = winner === match.home ? match.away : match.home;
         match.played = true;
+
+        // Track cup run wins for momentum
+        const winnerTeamDiv = state.divisions[d].teams.find(t => t.name === winner);
+        if (winnerTeamDiv) {
+          winnerTeamDiv.cupRunWins = (winnerTeamDiv.cupRunWins || 0) + 1;
+        }
+
         const cupResult = {
           home: match.home,
           away: match.away,
@@ -1796,7 +1819,13 @@ const MTSM_ENGINE = (() => {
       const awayTeam = findTeamByName(match.away);
       if (!homeTeam || !awayTeam) continue;
 
-      let result = simulateMatch(homeTeam, awayTeam);
+      const homeDivIdxCup = findTeamDivisionIndex(match.home);
+      const awayDivIdxCup = findTeamDivisionIndex(match.away);
+      let result = simulateMatch(homeTeam, awayTeam, {
+        isCup: true,
+        divisionIndex: homeDivIdxCup,
+        awayDivisionIndex: awayDivIdxCup
+      });
       // Knockout: no draws allowed
       if (result.homeGoals === result.awayGoals) {
         result.homeGoals += Math.random() < 0.55 ? 1 : 0;
@@ -1819,6 +1848,13 @@ const MTSM_ENGINE = (() => {
       const winner = result.homeGoals > result.awayGoals ? match.home : match.away;
       const loser = winner === match.home ? match.away : match.home;
       match.played = true;
+
+      // Track cup run wins for momentum
+      const winnerTeam = findTeamByName(winner);
+      if (winnerTeam) {
+        winnerTeam.cupRunWins = (winnerTeam.cupRunWins || 0) + 1;
+      }
+
       const cupResult = {
         home: match.home,
         away: match.away,
