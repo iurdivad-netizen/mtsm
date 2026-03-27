@@ -2507,7 +2507,7 @@ const MTSM_UI = (() => {
                 <span>${isHumanHome ? '🏠 HOME' : '✈️ AWAY'}</span>
                 <span>Att: ${r.attendance.toLocaleString()}</span>
                 ${divRes.cupName
-                  ? '<span class="text-success">Gate: +£' + Math.floor(r.gateIncome * (isHumanHome ? 0.75 : 0.25)).toLocaleString() + ' (' + (isHumanHome ? '75%' : '25%') + ')</span>'
+                  ? '<span class="text-success">Gate: +£' + Math.floor(r.gateIncome * 0.5).toLocaleString() + ' (50%)</span>'
                   : (isHumanHome ? '<span class="text-success">Gate: +£' + r.gateIncome.toLocaleString() + '</span>' : '<span class="text-muted">No gate income (away)</span>')}
               </div>` : ''}`;
             }).join('')}
@@ -2569,7 +2569,7 @@ const MTSM_UI = (() => {
       const team = MTSM_ENGINE.getCurrentHumanTeam();
       const isHumanHome = r.isHumanMatch && r.home === team.name;
       const humanGateIncome = r.cupName
-        ? Math.floor(r.gateIncome * (isHumanHome ? 0.75 : 0.25))
+        ? Math.floor(r.gateIncome * 0.5)
         : r.gateIncome;
       const homeDiv = r.cupName && r.homeDivision ? ` (D${r.homeDivision})` : '';
       const awayDiv = r.cupName && r.awayDivision ? ` (D${r.awayDivision})` : '';
@@ -2577,7 +2577,7 @@ const MTSM_UI = (() => {
         <span class="text-muted">[${divLabel}]</span>
         ${r.home}${homeDiv} <span class="team-score">${r.homeGoals}</span> — <span class="team-score">${r.awayGoals}</span> ${r.away}${awayDiv}
         ${r.isHumanMatch ? ' ★ ' + (r.cupName
-          ? '🏆 Att: ' + r.attendance.toLocaleString() + ' Gate: +£' + humanGateIncome.toLocaleString() + ' (' + (isHumanHome ? '75%' : '25%') + ')'
+          ? '🏆 Att: ' + r.attendance.toLocaleString() + ' Gate: +£' + humanGateIncome.toLocaleString() + ' (50%)'
           : (isHumanHome ? '🏠 Att: ' + r.attendance.toLocaleString() + ' Gate: +£' + r.gateIncome.toLocaleString() : '✈️ AWAY')) : ''}
       `;
       if (r.isHumanMatch) {
