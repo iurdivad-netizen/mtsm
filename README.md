@@ -98,7 +98,7 @@ When enabled, three tournament types run alongside the league:
 - **Division Cups** -- Knockout within each division (every 3 weeks)
 - **National Cup** -- All 64 teams in a single knockout bracket
 - **League Trophy** -- Separate all-teams tournament (every 5 weeks)
-- Gate income split 75/25 between home and away teams
+- Gate income split 50/50 between both teams in cup matches; 100% to home team in league matches
 - Prize money scales by division and round
 
 ## Tech Stack
