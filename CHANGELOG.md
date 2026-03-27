@@ -2,6 +2,69 @@
 
 All notable changes to MULTI PSM are documented in this file.
 
+## 2026-03-27
+
+### Fixed
+- UI now correctly displays 50/50 cup gate split instead of old 75/25
+
+## 2026-03-26
+
+### Added
+- Potential bonus to youth academy training
+- Rare breakthrough training: 7% chance for +2 skill gain per week
+- Form & momentum bonus to match strength calculation
+- Club division labels on National Cup and League Trophy displays
+- Cup run momentum bonus for lower division teams facing higher opponents
+
+### Changed
+- Removed home advantage bonus from cup matches
+- Cup gate income now split 50/50 between both clubs (was 75/25)
+
+## 2026-03-25
+
+### Added
+- Transfer market refresh every 9 weeks with alert notification
+- Color-coded match results: green for wins, yellow for draws, red for losses
+- Squad-style sort options on the training screen
+- Formation-aware best XI selection with custom OVR-based formation
+
+### Changed
+- Renamed Cup button to Division Cup with team status display
+- Draw result color changed from white to yellow (accent color)
+
+### Fixed
+- Trophy history: corrected Best Finish stat and added null safety
+
+## 2026-03-24
+
+### Added
+- Two-column training screen: user choice vs assistant coach auto-assignments
+- Assistant coach takes over when user's chosen skill reaches target
+- Two-column training UI mirrored to youth academy
+- Emergency loan system for clubs in debt
+- User-selectable loan repayment term (30-150 weeks, max 5 seasons)
+- Manager history now follows across club transfers
+
+### Fixed
+- Crash when viewing career after resigning for offers
+- Loan repayment: exported missing functions, added auto-deduction, extended to 40 weeks
+- Youth academy not resetting on club transfer
+- Main team assistant coach now resets on club transfer
+
+## 2026-03-23
+
+### Added
+- Career management: club transfer offers and resignation
+- Periodic club approach offers during the season (expire after 1 week)
+- PWA support for offline gameplay (service worker + manifest)
+- Confirmation dialogs, squad sorting, formation tooltips, and persistent notifications
+- Assistant coach staff role for main team and youth academy
+- Assistant coach trains each player's individual weakest skills
+- Squad size increased to 25 players (initial generation remains 16)
+
+### Fixed
+- Youth player value not updating on graduation
+
 ## 2026-03-22
 
 ### Added
