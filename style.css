@@ -88,6 +88,7 @@ body::after {
   min-height: 90dvh;
   text-align: center;
   gap: var(--space-8);
+  padding-bottom: var(--space-8);
 }
 
 /* --- Logo container --- */
@@ -211,6 +212,75 @@ body::after {
   line-height: 1.2;
   opacity: 0.5;
   white-space: pre;
+}
+
+/* --- Title info panels (Features / Changelog) --- */
+.title-info-box {
+  text-align: left;
+  max-width: 640px;
+  width: 100%;
+  background: rgba(0, 221, 68, 0.05);
+  border: 1px solid var(--color-primary);
+  padding: var(--space-6);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--color-primary);
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.title-info-box h2 {
+  font-family: var(--font-display);
+  font-size: 16px;
+  color: var(--color-accent);
+  text-align: center;
+  margin: 0 0 var(--space-4) 0;
+  text-shadow: 0 0 8px rgba(255, 204, 0, 0.4);
+}
+
+.title-info-box h3 {
+  font-family: var(--font-display);
+  font-size: 12px;
+  color: var(--color-primary);
+  margin: var(--space-4) 0 var(--space-2) 0;
+  border-bottom: 1px solid rgba(0, 221, 68, 0.3);
+  padding-bottom: 4px;
+}
+
+.title-info-box ul {
+  margin: 0 0 var(--space-2) 0;
+  padding-left: 20px;
+}
+
+.title-info-box li {
+  margin-bottom: 4px;
+}
+
+.title-info-box b {
+  color: var(--color-accent);
+}
+
+.title-info-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: var(--space-2) 0;
+}
+
+.title-info-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(0, 221, 68, 0.15);
+  vertical-align: top;
+}
+
+.title-info-table td:first-child {
+  width: 30px;
+  text-align: center;
+}
+
+.title-info-table td:nth-child(2) {
+  width: 140px;
+  white-space: nowrap;
 }
 
 /* ===== SETUP SCREEN ===== */

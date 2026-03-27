@@ -139,11 +139,204 @@ const MTSM_UI = (() => {
         <div style="display:flex;flex-direction:column;gap:12px;align-items:center;">
           <button class="btn btn-accent" onclick="MTSM_UI.renderSetup()">NEW GAME</button>
           <button class="btn" onclick="MTSM_UI._triggerLoad()">LOAD GAME</button>
+          <div style="display:flex;gap:12px;">
+            <button class="btn btn-small" onclick="MTSM_UI._toggleTitlePanel('features')">📖 FEATURES</button>
+            <button class="btn btn-small" onclick="MTSM_UI._toggleTitlePanel('changelog')">📜 CHANGELOG</button>
+          </div>
           <div class="text-muted" style="font-size:14px;">Up to 4 players • 64 teams • 4 divisions</div>
         </div>
+        <div id="title-info-panel"></div>
         <input type="file" id="load-file-input" accept=".json" style="display:none;" onchange="MTSM_UI._handleLoadFile(event)">
       </div>
     `;
+  }
+
+  let _activeTitlePanel = null;
+
+  function _toggleTitlePanel(panel) {
+    const el = document.getElementById('title-info-panel');
+    if (!el) return;
+    if (_activeTitlePanel === panel) {
+      _activeTitlePanel = null;
+      el.innerHTML = '';
+      return;
+    }
+    _activeTitlePanel = panel;
+    el.innerHTML = panel === 'features' ? _renderFeaturesPanel() : _renderChangelogPanel();
+  }
+
+  function _renderFeaturesPanel() {
+    return `<div class="title-info-box">
+      <h2>Features</h2>
+
+      <h3>Core Gameplay</h3>
+      <ul>
+        <li><b>4-Division League</b> — 64 teams (16 per division), full 30-match round-robin seasons</li>
+        <li><b>Multiplayer</b> — Up to 4 human managers in a shared game</li>
+        <li><b>Promotion &amp; Relegation</b> — Top 2 up, bottom 2 down each season</li>
+        <li><b>Match Simulation</b> — Strength, formation, morale, form, momentum, home advantage</li>
+        <li><b>Save/Load</b> — Full game state as JSON; works offline as a PWA</li>
+      </ul>
+
+      <h3>Squad &amp; Training</h3>
+      <ul>
+        <li>Squads up to 25 players with 6 skill attributes</li>
+        <li>Formation-aware best XI auto-selection</li>
+        <li>Two-column training: your picks + assistant coach auto-assignments</li>
+        <li>Rare breakthrough training (7% chance for +2 skill gain)</li>
+        <li>Injury system, player aging, retirement at 37+</li>
+      </ul>
+
+      <h3>Finances &amp; Transfers</h3>
+      <ul>
+        <li>Weekly wages, gate income, detailed bank statements</li>
+        <li>Emergency loan system with selectable repayment terms</li>
+        <li>Transfer market with position, rating, and age filters</li>
+        <li>Market refreshes every 9 weeks with alert notifications</li>
+        <li>Random events: TV bonuses, sponsorships, grants, fines</li>
+      </ul>
+
+      <h3>Staff</h3>
+      <ul>
+        <li><b>Coach</b> — Improves training success and team strength</li>
+        <li><b>Assistant Coach</b> — Auto-trains players' weakest skills</li>
+        <li><b>Scout</b> — Discovers discounted players via events</li>
+        <li><b>Physio</b> — Speeds up injury recovery</li>
+      </ul>
+
+      <h3>Career Management</h3>
+      <ul>
+        <li>Receive club approach offers from other teams during the season</li>
+        <li>Transfer to a new club or resign; history follows the manager</li>
+      </ul>
+
+      <h3>Ground Upgrades</h3>
+      <ul>
+        <li>Capacity (5k–50k), Safety (Basic–World Class), Pitch (Muddy–Perfect)</li>
+        <li>Unique procedurally-generated club logo crest per team</li>
+      </ul>
+
+      <h3>Club History &amp; News</h3>
+      <ul>
+        <li>Season-by-season records, trophy count, streaks, and fun stats</li>
+        <li>News board with multi-category filtering and time filters</li>
+        <li>Color-coded match results (green/yellow/red)</li>
+      </ul>
+
+      <h3>Optional Game Modes</h3>
+      <table class="title-info-table">
+        <tr><td>📊</td><td><b>Board Confidence</b></td><td>Visible meter (0–100%). Sacked at ≤10%.</td></tr>
+        <tr><td>📋</td><td><b>Formations</b></td><td>6 tactical formations with position bonuses and auto best XI.</td></tr>
+        <tr><td>🌱</td><td><b>Youth Academy</b></td><td>Scout prospects (16–18), upgrade academy, potential training bonus.</td></tr>
+        <tr><td>🤝</td><td><b>Negotiation</b></td><td>Bid/counter-bid rounds for expensive transfers.</td></tr>
+        <tr><td>🏆</td><td><b>Cups</b></td><td>Division cups, National Cup, League Trophy with prize money.</td></tr>
+      </table>
+
+      <h3>Cup Competitions</h3>
+      <ul>
+        <li><b>Division Cups</b> — Knockout within each division (every 3 weeks)</li>
+        <li><b>National Cup</b> — All 64 teams, single knockout bracket</li>
+        <li><b>League Trophy</b> — Separate all-teams tournament (every 5 weeks)</li>
+        <li>50/50 gate split in cups; no home advantage; momentum bonus for underdogs</li>
+      </ul>
+    </div>`;
+  }
+
+  function _renderChangelogPanel() {
+    return `<div class="title-info-box">
+      <h2>Changelog</h2>
+
+      <h3>2026-03-27</h3>
+      <ul>
+        <li><b>Fixed:</b> UI displays correct 50/50 cup gate split</li>
+      </ul>
+
+      <h3>2026-03-26</h3>
+      <ul>
+        <li>Potential bonus to youth academy training</li>
+        <li>Rare breakthrough training: 7% chance for +2 skill gain</li>
+        <li>Form &amp; momentum bonus in match strength calculation</li>
+        <li>Division labels on National Cup and League Trophy</li>
+        <li>Cup run momentum bonus for lower division teams</li>
+        <li>Removed home advantage from cup matches</li>
+        <li>Cup gate income now 50/50 split (was 75/25)</li>
+      </ul>
+
+      <h3>2026-03-25</h3>
+      <ul>
+        <li>Transfer market refresh every 9 weeks with alerts</li>
+        <li>Color-coded match results (green/yellow/red)</li>
+        <li>Sort options on training screen</li>
+        <li>Formation-aware best XI selection</li>
+        <li>Renamed Cup → Division Cup with team status</li>
+        <li><b>Fixed:</b> Trophy history Best Finish stat</li>
+      </ul>
+
+      <h3>2026-03-24</h3>
+      <ul>
+        <li>Two-column training screen (user + assistant coach)</li>
+        <li>Assistant coach skill target handover</li>
+        <li>Youth academy two-column training UI</li>
+        <li>Emergency loan system (30–150 week terms)</li>
+        <li>Manager history follows across club transfers</li>
+        <li><b>Fixed:</b> Career view crash, loan repayment, youth academy reset on transfer</li>
+      </ul>
+
+      <h3>2026-03-23</h3>
+      <ul>
+        <li>Career management: club transfer offers &amp; resignation</li>
+        <li>Club approach offers (expire after 1 week)</li>
+        <li>PWA support for offline gameplay</li>
+        <li>UX: confirmation dialogs, squad sorting, formation tooltips</li>
+        <li>Assistant coach staff role (main team + youth academy)</li>
+        <li>Squad size increased to 25 players</li>
+        <li><b>Fixed:</b> Youth player value on graduation</li>
+      </ul>
+
+      <h3>2026-03-22</h3>
+      <ul>
+        <li>Min/max age filters on transfer list</li>
+        <li>Multiple type filters on news board</li>
+        <li>Overall rating column in squad, training, tactics screens</li>
+        <li><b>Fixed:</b> Transaction sync issues</li>
+      </ul>
+
+      <h3>2026-03-21</h3>
+      <ul>
+        <li>Youth academy quality upgrades &amp; youth coach system</li>
+        <li>Club logo crests (procedurally generated)</li>
+        <li>Player transfer value overhaul (age, division, youth multipliers)</li>
+        <li>Renamed to <b>MULTI PSM</b></li>
+        <li><b>Fixed:</b> Youth academy prospect refresh</li>
+      </ul>
+
+      <h3>2026-03-20</h3>
+      <ul>
+        <li>Cup match attendance &amp; ticket income</li>
+        <li>End-of-season division tables</li>
+        <li>Club history with streaks &amp; records</li>
+        <li>Mid-season transfer refresh</li>
+        <li>Overall rating filters (70+/80+/90+)</li>
+        <li>"Last Week" news filter</li>
+        <li><b>Fixed:</b> Season tables, League Trophy timing, records compat</li>
+      </ul>
+
+      <h3>2026-03-19</h3>
+      <ul>
+        <li>National Cup &amp; League Trophy competitions</li>
+        <li>Scouted player badges on transfer list</li>
+        <li>Dashboard layout improvements</li>
+        <li><b>Fixed:</b> Promotion/relegation identity, dashboard visibility</li>
+      </ul>
+
+      <h3>2026-03-18</h3>
+      <ul>
+        <li>Initial release: Multi-Player Soccer Manager</li>
+        <li>Save/load, random team selection, 5 game options</li>
+        <li>Starting XI selector, quick training buttons, news board</li>
+        <li><b>Fixed:</b> Match locations, venue balance, gate income display</li>
+      </ul>
+    </div>`;
   }
 
   // ===== GAME OPTIONS DEFINITIONS =====
@@ -3204,6 +3397,7 @@ const MTSM_UI = (() => {
     _saveGame,
     _triggerLoad,
     _handleLoadFile,
+    _toggleTitlePanel,
     _toggleOption,
     _toggleAllOptions,
     _setFormation,
