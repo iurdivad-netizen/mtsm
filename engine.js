@@ -305,9 +305,11 @@ const MTSM_ENGINE = (() => {
     const homeFinal = homeStr + homeAdv;
     const awayFinal = awayStr;
 
-    // Goal probability based on strength difference
-    const total = homeFinal + awayFinal;
-    const homeProb = homeFinal / total;
+    // Goal probability based on strength difference (difference-based approach)
+    // Each point of gap shifts probability away from 50%; scaleFactor controls sensitivity
+    const SCALE_FACTOR = 200;
+    const diff = homeFinal - awayFinal;
+    const homeProb = Math.min(0.85, Math.max(0.15, 0.5 + diff / SCALE_FACTOR));
 
     // Generate goals (Poisson-ish)
     const totalGoals = Math.floor(Math.random() * 4) + Math.floor(Math.random() * 2);
