@@ -84,7 +84,8 @@ const MTSM_ENGINE = (() => {
             lastFormationWeek: 0,
             consecutiveLosses: 0,
             seasonBuys: 0,
-            seasonSells: 0
+            seasonSells: 0,
+            seasonHistory: []
           };
         }
       }
@@ -175,7 +176,8 @@ const MTSM_ENGINE = (() => {
   }
 
   // Helper: apply initial training based on AI personality style
-  function _applyAITrainingStyle(team, personality) {
+  // leaguePos and totalTeams are optional — when provided, enable league-position-aware training
+  function _applyAITrainingStyle(team, personality, leaguePos, totalTeams) {
     const SKILLS = MTSM_DATA.SKILLS;
     const positionSkills = {
       GK: ['Tackling', 'Heading'],
@@ -183,7 +185,27 @@ const MTSM_ENGINE = (() => {
       MID: ['Passing', 'Stamina'],
       FWD: ['Shooting', 'Pace']
     };
+
+    // League-position-aware overrides
+    const inBottom4 = leaguePos && totalTeams && leaguePos > totalTeams - 4;
+    const inTop4 = leaguePos && totalTeams && leaguePos <= 4;
+
     for (const player of team.players) {
+      // Bottom 4: prioritize Tackling and Heading for all players
+      if (inBottom4) {
+        const defSkills = ['Tackling', 'Heading'];
+        const sorted = defSkills.sort((a, b) => player.skills[a] - player.skills[b]);
+        player.training = sorted[0];
+        continue;
+      }
+      // Top 4: allow offensive training focus
+      if (inTop4) {
+        const offSkills = positionSkills[player.position] || ['Passing'];
+        const sorted = offSkills.slice().sort((a, b) => player.skills[a] - player.skills[b]);
+        player.training = sorted[0];
+        continue;
+      }
+
       if (personality.trainingStyle === 'weakest') {
         const sorted = SKILLS.slice().sort((a, b) => player.skills[a] - player.skills[b]);
         player.training = sorted[0];
@@ -1346,6 +1368,9 @@ const MTSM_ENGINE = (() => {
       return { division: hp.division, teamIndex: hp.teamIndex, team, pos };
     });
 
+    // Record AI manager season history BEFORE promotions change divisions
+    _recordAIManagerSeasonHistory(promotions, relegations);
+
     // Execute promotions and relegations
     for (const promo of promotions) {
       moveTeamBetweenDivisions(promo.team, promo.fromDiv, promo.toDiv);
@@ -2495,6 +2520,12 @@ const MTSM_ENGINE = (() => {
 
   // ===== AI MANAGER DECISION ENGINE =====
 
+  function _getSeasonPhase(week) {
+    if (week <= 10) return 'early';
+    if (week <= 20) return 'mid';
+    return 'late';
+  }
+
   function _getAIPersonality(teamName) {
     if (!state.aiManagerData || !state.aiManagerData[teamName]) return null;
     const data = state.aiManagerData[teamName];
@@ -2540,7 +2571,9 @@ const MTSM_ENGINE = (() => {
 
         // 3. TRAINING REFRESH (every 4 weeks)
         if (state.week % 4 === 0) {
-          _applyAITrainingStyle(team, personality);
+          const pos = _getTeamLeaguePosition(team, d);
+          const totalTeams = state.divisions[d].teams.length;
+          _applyAITrainingStyle(team, personality, pos, totalTeams);
         }
 
         // 4. TRANSFER DECISIONS (every 3-5 weeks depending on personality)
@@ -2620,16 +2653,53 @@ const MTSM_ENGINE = (() => {
   }
 
   function _aiTransferDecisions(team, aiData, personality, divIndex) {
+    const phase = _getSeasonPhase(state.week);
+    const leaguePos = _getTeamLeaguePosition(team, divIndex);
+    const totalTeams = state.divisions[divIndex].teams.length;
+    const inBottom2 = leaguePos > totalTeams - 2;
+    const inBottomHalf = leaguePos > totalTeams / 2;
+    const inBottom4 = leaguePos > totalTeams - 4;
+    const inTop3 = leaguePos <= 3;
+    const inTop4 = leaguePos <= 4;
+
+    // Season-phase transfer restrictions
+    if (phase === 'mid') {
+      // Mid season: only buy if in bottom half or surplus budget
+      const surplusBudget = team.balance > 50000;
+      if (!inBottomHalf && !surplusBudget) return;
+    } else if (phase === 'late') {
+      // Late season: freeze unless in relegation zone or title contention
+      if (!inBottom2 && !inTop3) return;
+    }
+
     // Determine budget
     let spendPct = personality.spendPct;
     if (personality.key === 'gambler') {
       spendPct = 0.1 + Math.random() * 0.7; // randomize for gamblers
     }
+
+    // Season history adjustments: if relegated last season, spend more
+    if (aiData.seasonHistory && aiData.seasonHistory.length > 0) {
+      const lastSeason = aiData.seasonHistory[aiData.seasonHistory.length - 1];
+      if (lastSeason.relegated) {
+        spendPct = Math.min(1.0, spendPct + 0.15);
+      } else if (lastSeason.promoted) {
+        spendPct = Math.max(0.05, spendPct - 0.10);
+      }
+    }
+
+    // Desperate buys in relegation zone during late season
+    if (phase === 'late' && inBottom2) {
+      spendPct = Math.min(1.0, spendPct + 0.20);
+    }
+
     const budget = Math.max(0, team.balance * spendPct);
     if (budget < 3000) return; // not enough to do anything
 
     // Cap seasonal buys to prevent excessive activity
-    if (aiData.seasonBuys >= 4) return;
+    let maxBuys = 4;
+    if (phase === 'late' && inTop3) maxBuys = 5; // allow 1 more strategic buy for title contenders
+    if (aiData.seasonBuys >= maxBuys) return;
 
     // Find weakest position
     const posAvg = {};
@@ -2644,9 +2714,16 @@ const MTSM_ENGINE = (() => {
     }
     // Sort positions by average overall (weakest first)
     const weakestPos = Object.keys(posAvg).sort((a, b) => posAvg[a] - posAvg[b]);
-    const targetPos = weakestPos[0] || 'MID';
+    let targetPos = weakestPos[0] || 'MID';
 
-    // Try to buy a player for the weakest position
+    // League-position awareness: bottom 4 prioritize DEF, top 4 allow FWD
+    if (inBottom4) {
+      targetPos = 'DEF';
+    } else if (inTop4 && Math.random() > 0.5) {
+      targetPos = 'FWD';
+    }
+
+    // Try to buy a player for the target position
     _aiBuyPlayer(team, aiData, personality, divIndex, budget, targetPos);
 
     // Sell underperforming players (if squad large enough)
@@ -2783,6 +2860,36 @@ const MTSM_ENGINE = (() => {
   }
 
   function _aiFormationAdjust(team, aiData, personality, divIndex) {
+    const phase = _getSeasonPhase(state.week);
+    const leaguePos = _getTeamLeaguePosition(team, divIndex);
+    const totalTeams = state.divisions[divIndex].teams.length;
+    const inBottom2 = leaguePos > totalTeams - 2;
+    const inTop3 = leaguePos <= 3;
+
+    // Late season overrides: relegation zone forces defensive, title race allows attacking
+    if (phase === 'late' && inBottom2) {
+      if (team.formation !== '5-3-2') {
+        team.formation = '5-3-2';
+        pushNews({
+          type: 'AI_TACTICS',
+          text: `${team.name} (${aiData.managerName}) switched to 5-3-2 in a desperate bid to avoid relegation.`
+        });
+      }
+      return;
+    }
+    if (phase === 'late' && inTop3) {
+      const attackingFormations = ['4-3-3', '3-4-3', '3-5-2'];
+      if (!attackingFormations.includes(team.formation)) {
+        const newF = attackingFormations[Math.floor(Math.random() * attackingFormations.length)];
+        team.formation = newF;
+        pushNews({
+          type: 'AI_TACTICS',
+          text: `${team.name} (${aiData.managerName}) switched to ${newF} to push for the title.`
+        });
+      }
+      return;
+    }
+
     if (Math.random() > personality.formationFlexibility) return; // not changing
 
     const formations = Object.keys(FORMATIONS).filter(f => f !== 'custom');
@@ -2851,6 +2958,32 @@ const MTSM_ENGINE = (() => {
     aiData.consecutiveLosses = 0;
   }
 
+  // Record AI manager season history before promotions/relegations change divisions
+  function _recordAIManagerSeasonHistory(promotions, relegations) {
+    if (!state.aiManagerData) return;
+    const promotedNames = new Set(promotions.map(p => p.team.name));
+    const relegatedNames = new Set(relegations.map(r => r.team.name));
+
+    for (let d = 0; d < 4; d++) {
+      const table = getLeagueTable(d);
+      for (let idx = 0; idx < table.length; idx++) {
+        const teamName = table[idx].name;
+        const aiData = state.aiManagerData[teamName];
+        if (!aiData) continue;
+        if (!aiData.seasonHistory) aiData.seasonHistory = [];
+        aiData.seasonHistory.push({
+          season: state.season,
+          division: d + 1,
+          position: idx + 1,
+          buys: aiData.seasonBuys || 0,
+          sells: aiData.seasonSells || 0,
+          promoted: promotedNames.has(teamName),
+          relegated: relegatedNames.has(teamName)
+        });
+      }
+    }
+  }
+
   // Reset AI manager seasonal counters at end of season
   function _resetAIManagerSeasonData() {
     if (!state.aiManagerData) return;
@@ -2901,6 +3034,12 @@ const MTSM_ENGINE = (() => {
     // Ensure AI manager option defaults
     if (savedState.options && savedState.options.aiManagers === undefined) savedState.options.aiManagers = false;
     if (savedState.options && savedState.options.aiManagers && !savedState.aiManagerData) savedState.aiManagerData = {};
+    // Ensure AI manager data has seasonHistory for backward compatibility
+    if (savedState.aiManagerData) {
+      for (const key of Object.keys(savedState.aiManagerData)) {
+        if (!savedState.aiManagerData[key].seasonHistory) savedState.aiManagerData[key].seasonHistory = [];
+      }
+    }
     // Ensure youth academy data has assistant coach fields
     if (savedState.youthAcademyData) {
       for (const key of Object.keys(savedState.youthAcademyData)) {
