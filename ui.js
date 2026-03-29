@@ -598,6 +598,7 @@ const MTSM_UI = (() => {
             <button class="btn btn-small" onclick="MTSM_UI._showSaveSlotsDialog()" title="Save/Load slots">🗄 SLOTS</button>
             <button class="btn btn-small" onclick="MTSM_UI._copyShareCode()" title="Copy share code to clipboard">📋 SHARE</button>
             <button class="btn btn-small" onclick="MTSM_UI._pasteShareCode()" title="Load game from share code">📥 PASTE</button>
+            ${state.options.aiManagers ? '<button class="btn btn-small" onclick="MTSM_UI._showAILog()" title="View AI Manager activity log">📊 AI LOG</button>' : ''}
           </div>
         </div>
         <input type="file" id="load-file-input" accept=".json" style="display:none;" onchange="MTSM_UI._handleLoadFile(event)">
@@ -3457,6 +3458,132 @@ const MTSM_UI = (() => {
     reader.readAsText(file);
   }
 
+  // ===== AI MANAGER LOG VIEWER =====
+
+  function _showAILog() {
+    const summary = MTSM_ENGINE.getAIManagerLogSummary();
+    const log = MTSM_ENGINE.getAIManagerLog();
+
+    let modal = document.getElementById('ai-log-modal');
+    if (modal) modal.remove();
+    modal = document.createElement('div');
+    modal.id = 'ai-log-modal';
+    modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.9);z-index:9999;display:flex;align-items:center;justify-content:center;';
+
+    // Build summary table
+    let summaryRows = '';
+    const teamNames = Object.keys(summary.teams).sort();
+    for (const name of teamNames) {
+      const t = summary.teams[name];
+      summaryRows += `<tr>
+        <td style="text-align:left;">${name}</td>
+        <td>${t.personality}</td>
+        <td>${t.buys}</td><td>${t.sells}</td>
+        <td>${t.panicBuys}</td><td>${t.emergencySells}</td>
+        <td>${t.formationChanges}</td>
+        <td>${t.byPhase.early}/${t.byPhase.mid}/${t.byPhase.late}</td>
+      </tr>`;
+    }
+
+    // Build recent log entries (last 50)
+    let recentRows = '';
+    const recent = log.slice(-50).reverse();
+    for (const e of recent) {
+      recentRows += `<tr>
+        <td>S${e.season}W${e.week}</td>
+        <td>${e.phase}</td>
+        <td style="text-align:left;">${e.team}</td>
+        <td>${e.action}</td>
+        <td style="text-align:left;font-size:10px;">${e.detail || ''}</td>
+      </tr>`;
+    }
+
+    modal.innerHTML = `
+      <div style="background:#111;border:2px solid var(--color-primary,#00ff00);padding:20px;max-width:800px;width:95%;max-height:85vh;overflow-y:auto;font-family:inherit;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <div style="color:var(--color-primary,#00ff00);font-size:16px;">AI MANAGER LOG (${summary.totalEntries} entries)</div>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-small" onclick="MTSM_UI._exportAILog()">EXPORT JSON</button>
+            <button class="btn btn-small" onclick="MTSM_UI._exportAILogCSV()">EXPORT CSV</button>
+            <button class="btn btn-small" onclick="document.getElementById('ai-log-modal').remove();">CLOSE</button>
+          </div>
+        </div>
+
+        <div style="color:var(--color-accent,#ffff00);margin-bottom:8px;font-size:13px;">SUMMARY BY TEAM</div>
+        <div style="overflow-x:auto;margin-bottom:16px;">
+          <table style="width:100%;border-collapse:collapse;font-size:11px;">
+            <tr style="color:var(--color-primary,#00ff00);border-bottom:1px solid #333;">
+              <th style="text-align:left;padding:4px;">Team</th>
+              <th style="padding:4px;">Type</th>
+              <th style="padding:4px;">Buys</th><th style="padding:4px;">Sells</th>
+              <th style="padding:4px;">Panic</th><th style="padding:4px;">Emerg</th>
+              <th style="padding:4px;">Form.</th>
+              <th style="padding:4px;">E/M/L</th>
+            </tr>
+            ${summaryRows || '<tr><td colspan="8" style="color:#888;padding:8px;">No AI activity logged yet.</td></tr>'}
+          </table>
+        </div>
+
+        <div style="color:var(--color-accent,#ffff00);margin-bottom:8px;font-size:13px;">RECENT ACTIVITY (last 50)</div>
+        <div style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;font-size:11px;">
+            <tr style="color:var(--color-primary,#00ff00);border-bottom:1px solid #333;">
+              <th style="padding:4px;">When</th>
+              <th style="padding:4px;">Phase</th>
+              <th style="text-align:left;padding:4px;">Team</th>
+              <th style="padding:4px;">Action</th>
+              <th style="text-align:left;padding:4px;">Detail</th>
+            </tr>
+            ${recentRows || '<tr><td colspan="5" style="color:#888;padding:8px;">No activity yet.</td></tr>'}
+          </table>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  }
+
+  function _exportAILog() {
+    const log = MTSM_ENGINE.getAIManagerLog();
+    const summary = MTSM_ENGINE.getAIManagerLogSummary();
+    const data = { exportedAt: new Date().toISOString(), summary, log };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const state = MTSM_ENGINE.getState();
+    a.href = url;
+    a.download = `mtsm_ai_log_s${state.season}_w${state.week}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showNotification('AI log exported as JSON!');
+  }
+
+  function _exportAILogCSV() {
+    const log = MTSM_ENGINE.getAIManagerLog();
+    const headers = ['season','week','phase','team','division','manager','personality','action','leaguePos','balance','squadSize','consecutiveLosses','seasonBuys','seasonSells','detail'];
+    const rows = [headers.join(',')];
+    for (const e of log) {
+      rows.push(headers.map(h => {
+        const val = e[h];
+        if (val == null) return '';
+        const s = String(val);
+        return s.includes(',') || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s;
+      }).join(','));
+    }
+    const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const state = MTSM_ENGINE.getState();
+    a.href = url;
+    a.download = `mtsm_ai_log_s${state.season}_w${state.week}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showNotification('AI log exported as CSV!');
+  }
+
   // ===== SHARE CODE SYSTEM (Cross-Device) =====
 
   function _generateShareCode() {
@@ -3758,7 +3885,10 @@ const MTSM_UI = (() => {
     _showSaveSlotsDialog,
     _saveToSlot,
     _loadFromSlot,
-    _deleteSlot
+    _deleteSlot,
+    _showAILog,
+    _exportAILog,
+    _exportAILogCSV
   };
 
 })();
