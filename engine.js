@@ -1175,6 +1175,15 @@ const MTSM_ENGINE = (() => {
       }
     }
 
+    // Snapshot each human player's division/teamIndex BEFORE promotions change them
+    const hpSnapshot = state.humanPlayers.map((hp, i) => {
+      if (hp.sacked) return null;
+      const team = state.divisions[hp.division].teams[hp.teamIndex];
+      const table = getLeagueTable(hp.division);
+      const pos = table.findIndex(t => t.name === team.name) + 1;
+      return { division: hp.division, teamIndex: hp.teamIndex, team, pos };
+    });
+
     // Execute promotions and relegations
     for (const promo of promotions) {
       moveTeamBetweenDivisions(promo.team, promo.fromDiv, promo.toDiv);
@@ -1237,28 +1246,29 @@ const MTSM_ENGINE = (() => {
       }
     }
 
-    // Record club history for each human player before resetting stats
+    // Record club history for each human player using pre-promotion snapshot
     for (let i = 0; i < state.humanPlayers.length; i++) {
       const hp = state.humanPlayers[i];
-      if (hp.sacked) continue;
-      const team = state.divisions[hp.division].teams[hp.teamIndex];
-      const table = getLeagueTable(hp.division);
-      const pos = table.findIndex(t => t.name === team.name) + 1;
+      if (hp.sacked || !hpSnapshot[i]) continue;
+      const snap = hpSnapshot[i];
+      const team = snap.team;
+      const origDiv = snap.division;
+      const pos = snap.pos;
 
-      // Collect trophies won this season
+      // Collect trophies won this season (using original division before promotion/relegation)
       const trophies = [];
       // League champion (Division 1, position 1)
-      if (hp.division === 0 && pos === 1) {
+      if (origDiv === 0 && pos === 1) {
         trophies.push('League Champion');
       }
       // Division champion (top of any division)
-      if (pos === 1 && hp.division > 0) {
-        trophies.push(`Division ${hp.division + 1} Champion`);
+      if (pos === 1 && origDiv > 0) {
+        trophies.push(`Division ${origDiv + 1} Champion`);
       }
       // Cup trophies
       if (state.options.cupPrizeMoney) {
-        if (state.cup && state.cup[hp.division] && state.cup[hp.division].winner === team.name) {
-          trophies.push(`Division ${hp.division + 1} Cup`);
+        if (state.cup && state.cup[origDiv] && state.cup[origDiv].winner === team.name) {
+          trophies.push(`Division ${origDiv + 1} Cup`);
         }
         if (state.nationalCup && state.nationalCup.winner === team.name) {
           trophies.push('National Cup');
@@ -1268,7 +1278,7 @@ const MTSM_ENGINE = (() => {
         }
       }
       // League Joker trophy
-      if (hp.division === 3 && pos === 16) {
+      if (origDiv === 3 && pos === 16) {
         trophies.push('League Joker');
       }
 
@@ -1327,7 +1337,7 @@ const MTSM_ENGINE = (() => {
       state.clubHistory[i].push({
         season: state.season,
         club: team.name,
-        division: hp.division + 1,
+        division: origDiv + 1,
         position: pos,
         played: team.played,
         won: team.won,
