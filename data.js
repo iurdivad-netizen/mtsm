@@ -267,6 +267,113 @@ const MTSM_DATA = (() => {
     return tryOrder().ordered;
   }
 
+  // ===== AI MANAGER PERSONALITIES =====
+  const AI_MANAGER_TYPES = [
+    {
+      key: 'pragmatist',
+      label: 'The Pragmatist',
+      icon: '🎯',
+      desc: 'Results first. Buys proven players, trains weaknesses, conservative tactics.',
+      // Decision weights
+      spendPct: 0.40,          // max % of balance willing to spend per transfer window
+      preferredFormation: '4-4-2',
+      formationFlexibility: 0.15,  // chance to change formation per cycle
+      buyAgeRange: [22, 30],   // preferred player age range
+      sellThreshold: 0.85,     // sell players below this % of team avg overall
+      staffPriority: ['Coach', 'Scout', 'Physio'],
+      groundPriority: ['pitch', 'capacity', 'safety'],
+      trainingStyle: 'weakest', // train each player's weakest skill
+      youthMinPotential: 80,   // only sign youth with potential >= this
+      riskTolerance: 0.2,
+      panicBuyThreshold: 3     // consecutive losses before panic buying
+    },
+    {
+      key: 'tactician',
+      label: 'The Tactician',
+      icon: '🧠',
+      desc: 'Formation-obsessed. Rotates tactics, invests heavily in coaching staff.',
+      spendPct: 0.25,
+      preferredFormation: '3-5-2',
+      formationFlexibility: 0.50,
+      buyAgeRange: [20, 29],
+      sellThreshold: 0.80,
+      staffPriority: ['Coach', 'Coach', 'Scout'],  // double-weight coach
+      groundPriority: ['pitch', 'safety', 'capacity'],
+      trainingStyle: 'positional', // train position-critical skills
+      youthMinPotential: 70,
+      riskTolerance: 0.35,
+      panicBuyThreshold: 4
+    },
+    {
+      key: 'moneybag',
+      label: 'The Moneybag',
+      icon: '💰',
+      desc: 'Buys the best players aggressively. Willing to take risks with finances.',
+      spendPct: 0.90,
+      preferredFormation: '4-3-3',
+      formationFlexibility: 0.10,
+      buyAgeRange: [23, 31],
+      sellThreshold: 0.90,     // high standards — sells anyone not top quality
+      staffPriority: ['Coach', 'Physio', 'Scout'],
+      groundPriority: ['capacity', 'pitch', 'safety'],
+      trainingStyle: 'minimal', // relies on buying talent
+      youthMinPotential: 99,   // effectively ignores youth
+      riskTolerance: 0.8,
+      panicBuyThreshold: 2
+    },
+    {
+      key: 'developer',
+      label: 'The Developer',
+      icon: '🌱',
+      desc: 'Youth-first. Invests in academy, rarely buys, sells veterans to fund growth.',
+      spendPct: 0.15,
+      preferredFormation: '4-4-2',
+      formationFlexibility: 0.20,
+      buyAgeRange: [17, 24],   // only buys young players
+      sellThreshold: 0.75,
+      staffPriority: ['Scout', 'Coach', 'Physio'],
+      groundPriority: ['pitch', 'safety', 'capacity'],
+      trainingStyle: 'development', // focus on young players, positional skills
+      youthMinPotential: 65,   // signs most youth prospects
+      riskTolerance: 0.25,
+      panicBuyThreshold: 5     // very patient
+    },
+    {
+      key: 'gambler',
+      label: 'The Gambler',
+      icon: '🎲',
+      desc: 'Unpredictable. Bold transfers, wild formations, high variance results.',
+      spendPct: 0.60,          // base, but actual is randomized 10-80%
+      preferredFormation: '3-4-3',
+      formationFlexibility: 0.70,
+      buyAgeRange: [17, 35],   // buys anyone
+      sellThreshold: 0.70,
+      staffPriority: ['Coach', 'Scout', 'Physio'],  // random in practice
+      groundPriority: ['capacity', 'pitch', 'safety'],
+      trainingStyle: 'random',
+      youthMinPotential: 60,
+      riskTolerance: 0.9,
+      panicBuyThreshold: 2
+    }
+  ];
+
+  // Names for AI managers (used in news/display)
+  const AI_MANAGER_NAMES = [
+    'A. Ferguson','J. Mourinho','P. Guardiola','C. Ancelotti','A. Wenger',
+    'B. Clough','J. Stein','B. Shankly','D. Revie','R. Paisley',
+    'K. Dalglish','T. Venables','H. Redknapp','S. Allardyce','G. Hoddle',
+    'M. O\'Neill','D. Moyes','R. Hodgson','G. Souness','W. Robson',
+    'L. van Gaal','R. Benitez','M. Pochettino','T. Henry','F. Lampard',
+    'S. Gerrard','G. Neville','R. Giggs','P. Scholes','D. Beckham',
+    'J. Carragher','M. Arteta','V. Kompany','W. Rooney','J. Terry',
+    'S. Bruce','M. Hughes','C. Coleman','P. Ince','B. Robson',
+    'N. Clough','M. Busby','R. Atkinson','G. Graham','J. Lyall',
+    'H. Catterick','D. Mackay','A. Ramsey','J. Harvey','B. Nicholl',
+    'T. Docherty','D. Sexton','R. Greenwood','E. Howe','O. Glasner',
+    'M. Sarri','D. Simeone','E. ten Hag','X. Alonso','T. Tuchel',
+    'R. De Zerbi','U. Emery','L. Enrique','M. Allegri','S. Pioli'
+  ];
+
   // Generate transfer market pool (extra players not on any team)
   function generateTransferPool(count) {
     const pool = [];
@@ -293,6 +400,8 @@ const MTSM_DATA = (() => {
     YOUTH_COACH_QUALITY,
     GROUND_UPGRADES,
     RANDOM_EVENTS,
+    AI_MANAGER_TYPES,
+    AI_MANAGER_NAMES,
     generatePlayer,
     generateTeam,
     generateFixtures,

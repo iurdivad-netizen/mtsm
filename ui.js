@@ -375,6 +375,13 @@ const MTSM_UI = (() => {
       icon: '🏆',
       desc: 'A knockout cup runs alongside the league with prize money at each round.',
       note: 'Original: league only. Cup runs become financially critical, especially in lower divisions.'
+    },
+    {
+      key: 'aiManagers',
+      label: 'AI Managers',
+      icon: '🤖',
+      desc: 'Computer teams get unique AI personalities that actively buy/sell players, change tactics, and upgrade facilities.',
+      note: 'Original: AI teams were passive. Now they compete with 5 distinct management styles.'
     }
   ];
 
@@ -383,7 +390,8 @@ const MTSM_UI = (() => {
     formationStrategy: false,
     youthAcademy: false,
     negotiation: false,
-    cupPrizeMoney: false
+    cupPrizeMoney: false,
+    aiManagers: false
   };
 
   // ===== SETUP SCREEN =====
@@ -1307,10 +1315,12 @@ const MTSM_UI = (() => {
               const isReleg = i >= 14 && state.currentDivision < 3;
               const isJoker = i === 15 && state.currentDivision === 3;
               let cls = isHuman ? 'highlight' : isPromo ? 'promotion' : (isReleg || isJoker) ? 'relegation' : '';
+              const aiInfo = !isHuman && state.options.aiManagers ? MTSM_ENGINE.getAIManagerInfo(t.name) : null;
+              const badge = isHuman ? ' ★' : aiInfo ? ` <span title="${aiInfo.personality} — ${aiInfo.managerName}" style="cursor:help;opacity:0.7;">${aiInfo.icon}</span>` : '';
               return `
                 <tr class="${cls}">
                   <td class="num">${i + 1}</td>
-                  <td>${t.name}${isHuman ? ' ★' : ''}</td>
+                  <td>${t.name}${badge}</td>
                   <td class="num">${t.played}</td>
                   <td class="num">${t.won}</td>
                   <td class="num">${t.drawn}</td>
@@ -1347,14 +1357,19 @@ const MTSM_UI = (() => {
       <div class="panel-header">📅 NEXT FIXTURES — Division ${hp.division + 1} — Round ${div.currentRound + 1}/30</div>
       <div class="match-results">
         ${fixtures.length === 0 ? '<div class="text-muted text-center">Season complete!</div>' :
-          fixtures.map(f => `
+          fixtures.map(f => {
+            const homeAI = !f.homeIsHuman && state.options.aiManagers ? MTSM_ENGINE.getAIManagerInfo(f.home) : null;
+            const awayAI = !f.awayIsHuman && state.options.aiManagers ? MTSM_ENGINE.getAIManagerInfo(f.away) : null;
+            const homeBadge = f.homeIsHuman ? ' ★' : homeAI ? ` <span title="${homeAI.personality}" style="opacity:0.7;">${homeAI.icon}</span>` : '';
+            const awayBadge = f.awayIsHuman ? ' ★' : awayAI ? ` <span title="${awayAI.personality}" style="opacity:0.7;">${awayAI.icon}</span>` : '';
+            return `
             <div class="match-result ${f.homeIsHuman || f.awayIsHuman ? 'user-match' : ''}">
-              <div class="home">${f.home}${f.homeIsHuman ? ' ★' : ''}</div>
+              <div class="home">${f.home}${homeBadge}</div>
               <div class="score">vs</div>
-              <div class="away">${f.away}${f.awayIsHuman ? ' ★' : ''}</div>
+              <div class="away">${f.away}${awayBadge}</div>
             </div>
             ${f.homeIsHuman || f.awayIsHuman ? '<div style="font-size:12px;padding:0 8px 8px;color:var(--color-muted);">' + (f.homeIsHuman ? '🏠 HOME — gate income applies' : '✈️ AWAY') + '</div>' : ''}
-          `).join('')
+          `;}).join('')
         }
       </div>
     `;
