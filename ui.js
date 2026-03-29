@@ -137,6 +137,14 @@ const MTSM_UI = (() => {
           <span class="subtitle">— Season ${new Date().getFullYear()} Edition —</span>
         </div>
         <div style="display:flex;flex-direction:column;gap:12px;align-items:center;">
+          ${(() => {
+            const info = _getAutoSaveInfo();
+            if (!info) return '';
+            const label = info.players > 1
+              ? `${info.players} managers`
+              : info.manager;
+            return `<button class="btn btn-accent" onclick="MTSM_UI._loadAutoSave()" style="border-color:var(--color-success);color:var(--color-success);">▶ RESUME (S${info.season} W${info.week} — ${label})</button>`;
+          })()}
           <button class="btn btn-accent" onclick="MTSM_UI.renderSetup()">NEW GAME</button>
           <button class="btn" onclick="MTSM_UI._triggerLoad()">LOAD GAME</button>
           <div style="display:flex;gap:12px;">
@@ -526,6 +534,7 @@ const MTSM_UI = (() => {
       usedTeams.add(teamIdx);
       humanPlayers.push({ name, teamIndex: teamIdx });
     }
+    _clearAutoSave();
     MTSM_ENGINE.initGame(humanPlayers, { ..._gameOptions });
     renderGame();
   }
@@ -2814,6 +2823,7 @@ const MTSM_UI = (() => {
     if (state.seasonOver) {
       _processEndOfSeason();
     } else {
+      _autoSave();
       renderGame('results');
       // Show persistent notifications for critical events
       _checkCriticalNotifications(state);
@@ -2964,6 +2974,7 @@ const MTSM_UI = (() => {
       </div>
     `;
 
+    _autoSave();
     app().innerHTML = html;
   }
 
@@ -3325,6 +3336,57 @@ const MTSM_UI = (() => {
   // ===== NOTIFICATION SYSTEM =====
   // Injected into the DOM via renderGame
 
+  // ===== AUTO-SAVE =====
+  const AUTO_SAVE_KEY = 'mtsm_autosave';
+
+  function _autoSave() {
+    const data = MTSM_ENGINE.saveGame();
+    if (!data) return;
+    try {
+      localStorage.setItem(AUTO_SAVE_KEY, JSON.stringify(data));
+    } catch (e) {
+      // localStorage full or unavailable — silently skip
+    }
+  }
+
+  function _loadAutoSave() {
+    try {
+      const raw = localStorage.getItem(AUTO_SAVE_KEY);
+      if (!raw) return false;
+      const data = JSON.parse(raw);
+      const success = MTSM_ENGINE.loadGame(data);
+      if (success) {
+        showNotification('Auto-save restored!');
+        renderGame();
+        return true;
+      }
+    } catch (e) {
+      // Corrupt data — clear it
+      localStorage.removeItem(AUTO_SAVE_KEY);
+    }
+    return false;
+  }
+
+  function _clearAutoSave() {
+    try { localStorage.removeItem(AUTO_SAVE_KEY); } catch (e) {}
+  }
+
+  function _getAutoSaveInfo() {
+    try {
+      const raw = localStorage.getItem(AUTO_SAVE_KEY);
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      if (!data || !data.divisions || !data.humanPlayers) return null;
+      const hp = data.humanPlayers[0];
+      return {
+        season: data.season,
+        week: data.week,
+        manager: hp ? hp.name : '?',
+        players: data.humanPlayers.length
+      };
+    } catch (e) { return null; }
+  }
+
   // ===== SAVE / LOAD =====
   function _saveGame() {
     const data = MTSM_ENGINE.saveGame();
@@ -3406,6 +3468,9 @@ const MTSM_UI = (() => {
     _upgradeGround,
     _playMatchDay,
     _afterMatchDay,
+    _autoSave,
+    _loadAutoSave,
+    _clearAutoSave,
     _transferFilter,
     _showVidiprinter,
     showNotification,
