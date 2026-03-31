@@ -3272,6 +3272,29 @@ const MTSM_ENGINE = (() => {
         }
       }
     }
+    // Recalculate OVR for all players using position-weighted formula
+    for (const div of savedState.divisions) {
+      for (const team of div.teams) {
+        for (const p of team.players) {
+          p.overall = MTSM_DATA.calcOverall(p.position, p.skills);
+        }
+      }
+    }
+    if (savedState.youthAcademy) {
+      for (const key of Object.keys(savedState.youthAcademy)) {
+        const academy = savedState.youthAcademy[key];
+        if (Array.isArray(academy)) {
+          for (const p of academy) {
+            p.overall = MTSM_DATA.calcOverall(p.position, p.skills);
+          }
+        }
+      }
+    }
+    if (savedState.transferPool) {
+      for (const p of savedState.transferPool) {
+        p.overall = MTSM_DATA.calcOverall(p.position, p.skills);
+      }
+    }
     state = savedState;
     return true;
   }
