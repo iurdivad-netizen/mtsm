@@ -54,6 +54,21 @@ const MTSM_DATA = (() => {
                      'DEF','MID','MID','FWD','GK'];
 
   const SKILLS = ['Pace','Shooting','Passing','Tackling','Heading','Stamina'];
+  const GK_SKILLS = ['Pace','Handling','Passing','Tackling','Heading','Stamina'];
+  // All unique skill names (for UI column headers)
+  const ALL_SKILLS = ['Pace','Shooting','Handling','Passing','Tackling','Heading','Stamina'];
+
+  // Position-specific skill sets and training focus
+  const POSITION_SKILLS_MAP = {
+    GK:  { skills: GK_SKILLS,  focus: ['Handling', 'Tackling'] },
+    DEF: { skills: SKILLS,     focus: ['Tackling', 'Heading'] },
+    MID: { skills: SKILLS,     focus: ['Passing', 'Stamina'] },
+    FWD: { skills: SKILLS,     focus: ['Shooting', 'Pace'] }
+  };
+
+  function getSkillsForPosition(pos) {
+    return POSITION_SKILLS_MAP[pos]?.skills || SKILLS;
+  }
 
   const STAFF_ROLES = ['Coach','Scout','Physio'];
   const STAFF_QUALITIES = ['Useless','Poor','Average','Good','Excellent'];
@@ -118,17 +133,18 @@ const MTSM_DATA = (() => {
     const pos = positionOverride || pick(POSITIONS);
     const age = randInt(17, 35);
     const baseSkill = Math.max(10, 70 - (divisionTier * 12) + randInt(-15, 15));
+    const playerSkills = getSkillsForPosition(pos);
     const skills = {};
-    for (const sk of SKILLS) {
+    for (const sk of playerSkills) {
       let val = baseSkill + randInt(-10, 10);
       // Position-based bonuses
-      if (pos === 'GK' && (sk === 'Tackling' || sk === 'Heading')) val += 10;
-      if (pos === 'DEF' && sk === 'Tackling') val += 8;
-      if (pos === 'MID' && sk === 'Passing') val += 8;
-      if (pos === 'FWD' && sk === 'Shooting') val += 10;
+      if (pos === 'GK' && (sk === 'Handling' || sk === 'Tackling')) val += 10;
+      if (pos === 'DEF' && (sk === 'Tackling' || sk === 'Heading')) val += 8;
+      if (pos === 'MID' && (sk === 'Passing' || sk === 'Stamina')) val += 8;
+      if (pos === 'FWD' && (sk === 'Shooting' || sk === 'Pace')) val += 10;
       skills[sk] = Math.max(1, Math.min(99, val));
     }
-    const overall = Math.round(Object.values(skills).reduce((a, b) => a + b, 0) / SKILLS.length);
+    const overall = Math.round(Object.values(skills).reduce((a, b) => a + b, 0) / playerSkills.length);
     const wage = Math.round((overall * 50 + randInt(0, 500)) / 10) * 10;
     // Age multiplier: young players (17-22) worth more, older (31+) worth less
     const ageMult = age <= 22 ? 1.3 - (age - 17) * 0.04 : age <= 29 ? 1.0 : 1.0 - (age - 29) * 0.07;
@@ -392,6 +408,10 @@ const MTSM_DATA = (() => {
     LAST_NAMES,
     POSITIONS,
     SKILLS,
+    GK_SKILLS,
+    ALL_SKILLS,
+    POSITION_SKILLS_MAP,
+    getSkillsForPosition,
     STAFF_ROLES,
     STAFF_QUALITIES,
     STAFF_COSTS,

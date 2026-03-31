@@ -179,55 +179,47 @@ const MTSM_ENGINE = (() => {
   // Helper: apply initial training based on AI personality style
   // leaguePos and totalTeams are optional — when provided, enable league-position-aware training
   function _applyAITrainingStyle(team, personality, leaguePos, totalTeams) {
-    const SKILLS = MTSM_DATA.SKILLS;
-    const positionSkills = {
-      GK: ['Tackling', 'Heading'],
-      DEF: ['Tackling', 'Heading'],
-      MID: ['Passing', 'Stamina'],
-      FWD: ['Shooting', 'Pace']
-    };
-
     // League-position-aware overrides
     const inBottom4 = leaguePos && totalTeams && leaguePos > totalTeams - 4;
     const inTop4 = leaguePos && totalTeams && leaguePos <= 4;
 
     for (const player of team.players) {
-      // Bottom 4: prioritize Tackling and Heading for all players
+      const pSkills = Object.keys(player.skills);
+      const focusSkills = MTSM_DATA.POSITION_SKILLS_MAP[player.position]?.focus || ['Passing'];
+
+      // Bottom 4: prioritize Tackling and Heading (filtered to player's own skills)
       if (inBottom4) {
-        const defSkills = ['Tackling', 'Heading'];
+        const defSkills = ['Tackling', 'Heading'].filter(s => player.skills[s] !== undefined);
         const sorted = defSkills.sort((a, b) => player.skills[a] - player.skills[b]);
-        player.training = sorted[0];
+        player.training = sorted[0] || pSkills.sort((a, b) => player.skills[a] - player.skills[b])[0];
         continue;
       }
       // Top 4: allow offensive training focus
       if (inTop4) {
-        const offSkills = positionSkills[player.position] || ['Passing'];
-        const sorted = offSkills.slice().sort((a, b) => player.skills[a] - player.skills[b]);
+        const sorted = focusSkills.slice().sort((a, b) => player.skills[a] - player.skills[b]);
         player.training = sorted[0];
         continue;
       }
 
       if (personality.trainingStyle === 'weakest') {
-        const sorted = SKILLS.slice().sort((a, b) => player.skills[a] - player.skills[b]);
+        const sorted = pSkills.slice().sort((a, b) => player.skills[a] - player.skills[b]);
         player.training = sorted[0];
       } else if (personality.trainingStyle === 'positional') {
-        const posSkills = positionSkills[player.position] || ['Passing'];
-        const sorted = posSkills.sort((a, b) => player.skills[a] - player.skills[b]);
+        const sorted = focusSkills.slice().sort((a, b) => player.skills[a] - player.skills[b]);
         player.training = sorted[0];
       } else if (personality.trainingStyle === 'development') {
         if (player.age <= 24) {
-          const posSkills = positionSkills[player.position] || ['Passing'];
-          player.training = posSkills.sort((a, b) => player.skills[a] - player.skills[b])[0];
+          player.training = focusSkills.slice().sort((a, b) => player.skills[a] - player.skills[b])[0];
         } else {
-          const sorted = SKILLS.slice().sort((a, b) => player.skills[a] - player.skills[b]);
+          const sorted = pSkills.slice().sort((a, b) => player.skills[a] - player.skills[b]);
           player.training = sorted[0];
         }
       } else if (personality.trainingStyle === 'random') {
-        player.training = MTSM_DATA.pick(SKILLS);
+        player.training = MTSM_DATA.pick(pSkills);
       } else {
         // minimal — only train if overall is low
         if (player.overall < 45) {
-          const sorted = SKILLS.slice().sort((a, b) => player.skills[a] - player.skills[b]);
+          const sorted = pSkills.slice().sort((a, b) => player.skills[a] - player.skills[b]);
           player.training = sorted[0];
         }
       }
@@ -661,7 +653,7 @@ const MTSM_ENGINE = (() => {
           if (player.userTraining) {
             if (player.skills[player.userTraining] >= target) {
               // User's chosen skill is maxed — auto-assign instead
-              const sorted = MTSM_DATA.SKILLS.slice().sort((a, b) => player.skills[a] - player.skills[b]);
+              const sorted = Object.keys(player.skills).sort((a, b) => player.skills[a] - player.skills[b]);
               player.training = sorted[0] === player.userTraining ? sorted[1] : sorted[0];
             } else {
               player.training = player.userTraining;
@@ -669,7 +661,7 @@ const MTSM_ENGINE = (() => {
             continue;
           }
           // Auto-pick the two lowest skills for THIS specific prospect
-          const sorted = MTSM_DATA.SKILLS.slice().sort((a, b) => player.skills[a] - player.skills[b]);
+          const sorted = Object.keys(player.skills).sort((a, b) => player.skills[a] - player.skills[b]);
           const sk1 = sorted[0];
           const sk2 = sorted[1];
           if (player.training === sk1 && player.skills[sk1] >= target) {
@@ -715,7 +707,7 @@ const MTSM_ENGINE = (() => {
         const asstBonus = (ad.asstCoach || 0) > 0 ? MTSM_DATA.ASST_COACH_QUALITY.trainBonus[ad.asstCoach] : 0;
         for (const player of academy) {
           // Youth coach trains targeted skill if set, otherwise random
-          const skill = player.training || MTSM_DATA.pick(MTSM_DATA.SKILLS);
+          const skill = player.training || MTSM_DATA.pick(Object.keys(player.skills));
           let trainChance = 0.15 + coachBonus + asstBonus;
           if (player.potential) {
             trainChance += (player.potential - 50) / 200;
@@ -726,7 +718,7 @@ const MTSM_ENGINE = (() => {
             const gain = Math.random() < 0.07 ? 2 : 1;
             player.skills[skill] = Math.min(99, player.skills[skill] + gain);
             player.overall = Math.round(
-              Object.values(player.skills).reduce((a, b) => a + b, 0) / MTSM_DATA.SKILLS.length
+              Object.values(player.skills).reduce((a, b) => a + b, 0) / Object.keys(player.skills).length
             );
             // Recalculate value
             const ageMult = player.age <= 22 ? 1.3 - (player.age - 17) * 0.04 : 1.0;
@@ -873,7 +865,7 @@ const MTSM_ENGINE = (() => {
         if (player.userTraining) {
           if (player.skills[player.userTraining] >= target) {
             // User's chosen skill is maxed — auto-assign instead
-            const sorted = MTSM_DATA.SKILLS.slice().sort((a, b) => player.skills[a] - player.skills[b]);
+            const sorted = Object.keys(player.skills).sort((a, b) => player.skills[a] - player.skills[b]);
             player.training = sorted[0] === player.userTraining ? sorted[1] : sorted[0];
           } else {
             player.training = player.userTraining;
@@ -881,7 +873,7 @@ const MTSM_ENGINE = (() => {
           continue;
         }
         // Auto-pick the two lowest skills for THIS specific player
-        const sorted = MTSM_DATA.SKILLS.slice().sort((a, b) => player.skills[a] - player.skills[b]);
+        const sorted = Object.keys(player.skills).sort((a, b) => player.skills[a] - player.skills[b]);
         const sk1 = sorted[0];
         const sk2 = sorted[1];
         // Decide which skill to train: if current training reached target, switch to the other
@@ -909,12 +901,12 @@ const MTSM_ENGINE = (() => {
     const target = ac.targetLevel || 99;
     // If user chose a skill but it's at target, show what assistant coach would pick
     if (player.userTraining && player.skills[player.userTraining] >= target) {
-      const sorted = MTSM_DATA.SKILLS.slice().sort((a, b) => player.skills[a] - player.skills[b]);
+      const sorted = Object.keys(player.skills).sort((a, b) => player.skills[a] - player.skills[b]);
       return sorted[0] === player.userTraining ? sorted[1] : sorted[0];
     }
     if (player.userTraining) return player.userTraining;
     // No user training — auto-pick two lowest
-    const sorted = MTSM_DATA.SKILLS.slice().sort((a, b) => player.skills[a] - player.skills[b]);
+    const sorted = Object.keys(player.skills).sort((a, b) => player.skills[a] - player.skills[b]);
     const sk1 = sorted[0];
     const sk2 = sorted[1];
     if (player.training === sk1 && player.skills[sk1] >= target) return sk2;
@@ -936,12 +928,12 @@ const MTSM_ENGINE = (() => {
     const target = ad.asstTargetLevel || 99;
     // If user chose a skill but it's at target, show what assistant coach would pick
     if (player.userTraining && player.skills[player.userTraining] >= target) {
-      const sorted = MTSM_DATA.SKILLS.slice().sort((a, b) => player.skills[a] - player.skills[b]);
+      const sorted = Object.keys(player.skills).sort((a, b) => player.skills[a] - player.skills[b]);
       return sorted[0] === player.userTraining ? sorted[1] : sorted[0];
     }
     if (player.userTraining) return player.userTraining;
     // No user training — auto-pick two lowest
-    const sorted = MTSM_DATA.SKILLS.slice().sort((a, b) => player.skills[a] - player.skills[b]);
+    const sorted = Object.keys(player.skills).sort((a, b) => player.skills[a] - player.skills[b]);
     const sk1 = sorted[0];
     const sk2 = sorted[1];
     if (player.training === sk1 && player.skills[sk1] >= target) return sk2;
@@ -1001,14 +993,14 @@ const MTSM_ENGINE = (() => {
             const decline = Math.random() < 0.08 ? 1 : 0;
             player.skills[player.training] = Math.min(99, player.skills[player.training] + improvement);
             // Slight decline in untrained skills
-            for (const sk of MTSM_DATA.SKILLS) {
+            for (const sk of Object.keys(player.skills)) {
               if (sk !== player.training && Math.random() < 0.03) {
                 player.skills[sk] = Math.max(1, player.skills[sk] - decline);
               }
             }
             const oldOvr = player.overall;
             player.overall = Math.round(
-              Object.values(player.skills).reduce((a, b) => a + b, 0) / MTSM_DATA.SKILLS.length
+              Object.values(player.skills).reduce((a, b) => a + b, 0) / Object.keys(player.skills).length
             );
             // Recalculate transfer value based on new overall
             const ageMult = player.age <= 22 ? 1.3 - (player.age - 17) * 0.04 : player.age <= 29 ? 1.0 : 1.0 - (player.age - 29) * 0.07;
@@ -1397,13 +1389,13 @@ const MTSM_ENGINE = (() => {
           player.age++;
           // Decline for older players
           if (player.age > 30) {
-            for (const sk of MTSM_DATA.SKILLS) {
+            for (const sk of Object.keys(player.skills)) {
               if (Math.random() < 0.3) {
                 player.skills[sk] = Math.max(1, player.skills[sk] - MTSM_DATA.randInt(1, 3));
               }
             }
             player.overall = Math.round(
-              Object.values(player.skills).reduce((a, b) => a + b, 0) / MTSM_DATA.SKILLS.length
+              Object.values(player.skills).reduce((a, b) => a + b, 0) / Object.keys(player.skills).length
             );
           }
           // After a season on the senior squad, youth players graduate to normal valuation
@@ -2041,16 +2033,17 @@ const MTSM_ENGINE = (() => {
       const pos = MTSM_DATA.pick(['GK', 'DEF', 'DEF', 'MID', 'MID', 'FWD']);
       const age = MTSM_DATA.randInt(16, 18);
       const baseSkill = MTSM_DATA.randInt(15, 35) + bonus;
+      const playerSkills = MTSM_DATA.getSkillsForPosition(pos);
       const skills = {};
-      for (const sk of MTSM_DATA.SKILLS) {
+      for (const sk of playerSkills) {
         let val = baseSkill + MTSM_DATA.randInt(-8, 8);
-        if (pos === 'GK' && (sk === 'Tackling' || sk === 'Heading')) val += 5;
-        if (pos === 'DEF' && sk === 'Tackling') val += 5;
-        if (pos === 'MID' && sk === 'Passing') val += 5;
-        if (pos === 'FWD' && sk === 'Shooting') val += 5;
+        if (pos === 'GK' && (sk === 'Handling' || sk === 'Tackling')) val += 5;
+        if (pos === 'DEF' && (sk === 'Tackling' || sk === 'Heading')) val += 5;
+        if (pos === 'MID' && (sk === 'Passing' || sk === 'Stamina')) val += 5;
+        if (pos === 'FWD' && (sk === 'Shooting' || sk === 'Pace')) val += 5;
         skills[sk] = Math.max(1, Math.min(99, val));
       }
-      const overall = Math.round(Object.values(skills).reduce((a, b) => a + b, 0) / MTSM_DATA.SKILLS.length);
+      const overall = Math.round(Object.values(skills).reduce((a, b) => a + b, 0) / playerSkills.length);
       const potential = MTSM_DATA.randInt(55, 90); // how good they can become
       const wage = Math.round((overall * 20 + MTSM_DATA.randInt(0, 200)) / 10) * 10;
       // Youth players cost 30% of senior value (unproven but have potential)
@@ -3194,6 +3187,44 @@ const MTSM_ENGINE = (() => {
         const ad = savedState.youthAcademyData[key];
         if (ad.asstCoach === undefined) ad.asstCoach = 0;
         if (ad.asstTargetLevel === undefined) ad.asstTargetLevel = 99;
+      }
+    }
+    // Migrate GK players: rename Shooting → Handling for backward compatibility
+    for (const div of savedState.divisions) {
+      for (const team of div.teams) {
+        for (const p of team.players) {
+          if (p.position === 'GK' && p.skills.Shooting !== undefined && p.skills.Handling === undefined) {
+            p.skills.Handling = p.skills.Shooting;
+            delete p.skills.Shooting;
+            if (p.training === 'Shooting') p.training = 'Handling';
+            if (p.userTraining === 'Shooting') p.userTraining = 'Handling';
+          }
+        }
+      }
+    }
+    // Also migrate youth academy prospects
+    if (savedState.youthAcademy) {
+      for (const key of Object.keys(savedState.youthAcademy)) {
+        const academy = savedState.youthAcademy[key];
+        if (Array.isArray(academy)) {
+          for (const p of academy) {
+            if (p.position === 'GK' && p.skills.Shooting !== undefined && p.skills.Handling === undefined) {
+              p.skills.Handling = p.skills.Shooting;
+              delete p.skills.Shooting;
+              if (p.training === 'Shooting') p.training = 'Handling';
+              if (p.userTraining === 'Shooting') p.userTraining = 'Handling';
+            }
+          }
+        }
+      }
+    }
+    // Also migrate transfer pool
+    if (savedState.transferPool) {
+      for (const p of savedState.transferPool) {
+        if (p.position === 'GK' && p.skills.Shooting !== undefined && p.skills.Handling === undefined) {
+          p.skills.Handling = p.skills.Shooting;
+          delete p.skills.Shooting;
+        }
       }
     }
     state = savedState;
