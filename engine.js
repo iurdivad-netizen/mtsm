@@ -168,6 +168,7 @@ const MTSM_ENGINE = (() => {
       clubOffers: {},
       assistantCoachData,
       aiManagerData,
+      aiManagerLog: [],   // structured AI decision log for analysis
       transferMarketRefreshedWeek: 0,
       transferMarketAlert: false
     };
@@ -2520,6 +2521,33 @@ const MTSM_ENGINE = (() => {
 
   // ===== AI MANAGER DECISION ENGINE =====
 
+  // Structured log entry for AI manager decisions — used for analysis and tuning
+  function _logAIDecision(team, aiData, personality, action, details) {
+    if (!state.aiManagerLog) state.aiManagerLog = [];
+    const leaguePos = details.leaguePos || null;
+    state.aiManagerLog.push({
+      season: state.season,
+      week: state.week,
+      phase: _getSeasonPhase(state.week),
+      team: team.name,
+      division: details.division != null ? details.division + 1 : null,
+      manager: aiData.managerName,
+      personality: personality.key,
+      action,                     // 'buy', 'sell', 'emergency_sell', 'panic_buy', 'squad_fill', 'formation_change', 'staff_upgrade', 'ground_upgrade', 'training', 'transfer_skipped'
+      leaguePos,
+      balance: team.balance,
+      squadSize: team.players.length,
+      consecutiveLosses: aiData.consecutiveLosses,
+      seasonBuys: aiData.seasonBuys,
+      seasonSells: aiData.seasonSells,
+      detail: details.detail || null  // free-form context string
+    });
+    // Cap log to prevent unbounded growth (keep last 2000 entries)
+    if (state.aiManagerLog.length > 2000) {
+      state.aiManagerLog = state.aiManagerLog.slice(-1500);
+    }
+  }
+
   function _getSeasonPhase(week) {
     if (week <= 10) return 'early';
     if (week <= 20) return 'mid';
@@ -2627,6 +2655,10 @@ const MTSM_ENGINE = (() => {
           type: 'AI_TRANSFER',
           text: `${team.name} (${aiData.managerName}) emergency-sold ${toSell.name} (${toSell.position}, OVR ${toSell.overall}) for £${salePrice.toLocaleString()} to avoid financial ruin!`
         });
+        _logAIDecision(team, aiData, personality, 'emergency_sell', {
+          division: divIndex,
+          detail: `Sold ${toSell.name} (${toSell.position}, OVR ${toSell.overall}) for £${salePrice.toLocaleString()} — balance was £${(team.balance - salePrice).toLocaleString()}`
+        });
       }
     }
   }
@@ -2635,6 +2667,10 @@ const MTSM_ENGINE = (() => {
     // Emergency buy if squad too small
     if (team.players.length < 14) {
       const budget = Math.max(team.balance * 0.3, 5000);
+      _logAIDecision(team, aiData, personality, 'squad_fill', {
+        division: divIndex,
+        detail: `Squad too small (${team.players.length} players) — emergency buy with £${budget.toLocaleString()} budget`
+      });
       _aiBuyPlayer(team, aiData, personality, divIndex, budget, null);
     }
 
@@ -2647,6 +2683,10 @@ const MTSM_ENGINE = (() => {
     const minPos = { GK: 1, DEF: 3, MID: 2, FWD: 1 };
     for (const [pos, min] of Object.entries(minPos)) {
       if (posCount[pos] < min && team.balance > 5000) {
+        _logAIDecision(team, aiData, personality, 'squad_fill', {
+          division: divIndex,
+          detail: `Position gap: ${pos} has ${posCount[pos]}/${min} fit players`
+        });
         _aiBuyPlayer(team, aiData, personality, divIndex, team.balance * 0.25, pos);
       }
     }
@@ -2666,10 +2706,22 @@ const MTSM_ENGINE = (() => {
     if (phase === 'mid') {
       // Mid season: only buy if in bottom half or surplus budget
       const surplusBudget = team.balance > 50000;
-      if (!inBottomHalf && !surplusBudget) return;
+      if (!inBottomHalf && !surplusBudget) {
+        _logAIDecision(team, aiData, personality, 'transfer_skipped', {
+          division: divIndex, leaguePos,
+          detail: `Mid-season freeze — pos ${leaguePos}/${totalTeams}, not in bottom half, no surplus`
+        });
+        return;
+      }
     } else if (phase === 'late') {
       // Late season: freeze unless in relegation zone or title contention
-      if (!inBottom2 && !inTop3) return;
+      if (!inBottom2 && !inTop3) {
+        _logAIDecision(team, aiData, personality, 'transfer_skipped', {
+          division: divIndex, leaguePos,
+          detail: `Late-season freeze — pos ${leaguePos}/${totalTeams}, not in danger or contention`
+        });
+        return;
+      }
     }
 
     // Determine budget
@@ -2750,6 +2802,10 @@ const MTSM_ENGINE = (() => {
           type: 'AI_TRANSFER',
           text: `${team.name} (${aiData.managerName}) sold ${toSell.name} (${toSell.position}, OVR ${toSell.overall}) for £${salePrice.toLocaleString()}.`
         });
+        _logAIDecision(team, aiData, personality, 'sell', {
+          division: divIndex, leaguePos,
+          detail: `Sold ${toSell.name} (${toSell.position}, OVR ${toSell.overall}) for £${salePrice.toLocaleString()} — below threshold ${Math.round(threshold)} (team avg ${Math.round(teamAvg)})`
+        });
       }
     }
   }
@@ -2807,6 +2863,10 @@ const MTSM_ENGINE = (() => {
       type: 'AI_TRANSFER',
       text: `${team.name} (${aiData.managerName}) signed ${pick.name} (${pick.position}, OVR ${pick.overall}) for £${price.toLocaleString()}.`
     });
+    _logAIDecision(team, aiData, personality, 'buy', {
+      division: divIndex,
+      detail: `Signed ${pick.name} (${pick.position}, age ${pick.age}, OVR ${pick.overall}) for £${price.toLocaleString()} — target: ${targetPos || 'any'}, budget: £${Math.round(budget).toLocaleString()}, ${candidates.length} candidates`
+    });
   }
 
   function _aiStaffUpgrades(team, aiData, personality) {
@@ -2827,6 +2887,9 @@ const MTSM_ENGINE = (() => {
         pushNews({
           type: 'AI_STAFF',
           text: `${team.name} (${aiData.managerName}) upgraded ${role} to ${MTSM_DATA.STAFF_QUALITIES[newQuality]}.`
+        });
+        _logAIDecision(team, aiData, personality, 'staff_upgrade', {
+          detail: `Upgraded ${role} to tier ${newQuality} (${MTSM_DATA.STAFF_QUALITIES[newQuality]}), wage +£${weeklyIncrease}/wk`
         });
         return; // one upgrade per cycle
       }
@@ -2854,6 +2917,9 @@ const MTSM_ENGINE = (() => {
           type: 'AI_GROUND',
           text: `${team.name} (${aiData.managerName}) upgraded ${type} to ${levelName}.`
         });
+        _logAIDecision(team, aiData, personality, 'ground_upgrade', {
+          detail: `Upgraded ${type} to ${levelName} for £${cost.toLocaleString()}`
+        });
         return; // one upgrade per cycle
       }
     }
@@ -2869,10 +2935,15 @@ const MTSM_ENGINE = (() => {
     // Late season overrides: relegation zone forces defensive, title race allows attacking
     if (phase === 'late' && inBottom2) {
       if (team.formation !== '5-3-2') {
+        const oldF = team.formation;
         team.formation = '5-3-2';
         pushNews({
           type: 'AI_TACTICS',
           text: `${team.name} (${aiData.managerName}) switched to 5-3-2 in a desperate bid to avoid relegation.`
+        });
+        _logAIDecision(team, aiData, personality, 'formation_change', {
+          division: divIndex, leaguePos,
+          detail: `${oldF} → 5-3-2 (relegation survival, pos ${leaguePos}/${totalTeams})`
         });
       }
       return;
@@ -2880,11 +2951,16 @@ const MTSM_ENGINE = (() => {
     if (phase === 'late' && inTop3) {
       const attackingFormations = ['4-3-3', '3-4-3', '3-5-2'];
       if (!attackingFormations.includes(team.formation)) {
+        const oldF = team.formation;
         const newF = attackingFormations[Math.floor(Math.random() * attackingFormations.length)];
         team.formation = newF;
         pushNews({
           type: 'AI_TACTICS',
           text: `${team.name} (${aiData.managerName}) switched to ${newF} to push for the title.`
+        });
+        _logAIDecision(team, aiData, personality, 'formation_change', {
+          division: divIndex, leaguePos,
+          detail: `${oldF} → ${newF} (title push, pos ${leaguePos}/${totalTeams})`
         });
       }
       return;
@@ -2918,29 +2994,44 @@ const MTSM_ENGINE = (() => {
         if (score > bestScore) { bestScore = score; bestFormation = fKey; }
       }
       if (bestFormation !== team.formation) {
+        const oldF = team.formation;
         team.formation = bestFormation;
         pushNews({
           type: 'AI_TACTICS',
           text: `${team.name} (${aiData.managerName}) switched to ${bestFormation} formation.`
+        });
+        _logAIDecision(team, aiData, personality, 'formation_change', {
+          division: divIndex,
+          detail: `${oldF} → ${bestFormation} (tactician squad-fit analysis)`
         });
       }
     } else if (personality.key === 'gambler') {
       // Random formation
       const newFormation = formations[Math.floor(Math.random() * formations.length)];
       if (newFormation !== team.formation) {
+        const oldF = team.formation;
         team.formation = newFormation;
         pushNews({
           type: 'AI_TACTICS',
           text: `${team.name} (${aiData.managerName}) switched to ${newFormation} formation.`
         });
+        _logAIDecision(team, aiData, personality, 'formation_change', {
+          division: divIndex,
+          detail: `${oldF} → ${newFormation} (gambler random pick)`
+        });
       }
     } else if (personality.key === 'pragmatist') {
       // Only change if on a losing streak
       if (aiData.consecutiveLosses >= 3) {
+        const oldF = team.formation;
         team.formation = '5-3-2'; // defensive
         pushNews({
           type: 'AI_TACTICS',
           text: `${team.name} (${aiData.managerName}) switched to 5-3-2 to shore up the defence.`
+        });
+        _logAIDecision(team, aiData, personality, 'formation_change', {
+          division: divIndex,
+          detail: `${oldF} → 5-3-2 (pragmatist losing streak: ${aiData.consecutiveLosses} losses)`
         });
       }
     }
@@ -2952,6 +3043,10 @@ const MTSM_ENGINE = (() => {
     // Try to buy a quality player for the weakest position
     const budget = Math.min(team.balance * 0.5, team.balance);
     if (budget > 5000 && aiData.seasonBuys < 6) {
+      _logAIDecision(team, aiData, personality, 'panic_buy', {
+        division: divIndex,
+        detail: `Panic mode triggered after ${aiData.consecutiveLosses} consecutive losses — budget £${Math.round(budget).toLocaleString()}`
+      });
       _aiBuyPlayer(team, aiData, personality, divIndex, budget, null);
     }
     // Reset consecutive losses counter after panic action
@@ -3014,6 +3109,37 @@ const MTSM_ENGINE = (() => {
     };
   }
 
+  // Aggregate AI log into per-team summary stats for quick analysis
+  function getAIManagerLogSummary() {
+    const log = (state && state.aiManagerLog) ? state.aiManagerLog : [];
+    const teams = {};
+    for (const entry of log) {
+      if (!teams[entry.team]) {
+        teams[entry.team] = {
+          team: entry.team, personality: entry.personality, manager: entry.manager,
+          buys: 0, sells: 0, emergencySells: 0, panicBuys: 0,
+          formationChanges: 0, staffUpgrades: 0, groundUpgrades: 0,
+          transfersSkipped: 0, squadFills: 0,
+          byPhase: { early: 0, mid: 0, late: 0 },
+          entries: []
+        };
+      }
+      const t = teams[entry.team];
+      if (entry.action === 'buy') t.buys++;
+      else if (entry.action === 'sell') t.sells++;
+      else if (entry.action === 'emergency_sell') t.emergencySells++;
+      else if (entry.action === 'panic_buy') t.panicBuys++;
+      else if (entry.action === 'formation_change') t.formationChanges++;
+      else if (entry.action === 'staff_upgrade') t.staffUpgrades++;
+      else if (entry.action === 'ground_upgrade') t.groundUpgrades++;
+      else if (entry.action === 'transfer_skipped') t.transfersSkipped++;
+      else if (entry.action === 'squad_fill') t.squadFills++;
+      if (entry.phase) t.byPhase[entry.phase]++;
+      t.entries.push(entry);
+    }
+    return { totalEntries: log.length, teams };
+  }
+
   // ===== SAVE / LOAD =====
   function saveGame() {
     if (!state) return null;
@@ -3034,6 +3160,7 @@ const MTSM_ENGINE = (() => {
     // Ensure AI manager option defaults
     if (savedState.options && savedState.options.aiManagers === undefined) savedState.options.aiManagers = false;
     if (savedState.options && savedState.options.aiManagers && !savedState.aiManagerData) savedState.aiManagerData = {};
+    if (!savedState.aiManagerLog) savedState.aiManagerLog = [];
     // Ensure AI manager data has seasonHistory for backward compatibility
     if (savedState.aiManagerData) {
       for (const key of Object.keys(savedState.aiManagerData)) {
@@ -3102,7 +3229,9 @@ const MTSM_ENGINE = (() => {
     getLoanPreview,
     confirmEmergencyLoan,
     setLoanRepaymentTerm,
-    getAIManagerInfo
+    getAIManagerInfo,
+    getAIManagerLog: () => (state && state.aiManagerLog) ? state.aiManagerLog : [],
+    getAIManagerLogSummary
   };
 
 })();
