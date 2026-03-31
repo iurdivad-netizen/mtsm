@@ -70,6 +70,25 @@ const MTSM_DATA = (() => {
     return POSITION_SKILLS_MAP[pos]?.skills || SKILLS;
   }
 
+  // Position-weighted skill importance for OVR calculation
+  const POSITION_SKILL_WEIGHTS = {
+    GK:  { Pace: 0.6, Handling: 1.5, Passing: 0.8, Tackling: 1.3, Heading: 1.2, Stamina: 0.6 },
+    DEF: { Pace: 0.8, Shooting: 0.5, Passing: 0.8, Tackling: 1.5, Heading: 1.3, Stamina: 1.0 },
+    MID: { Pace: 0.9, Shooting: 0.9, Passing: 1.5, Tackling: 0.8, Heading: 0.7, Stamina: 1.3 },
+    FWD: { Pace: 1.3, Shooting: 1.5, Passing: 0.8, Tackling: 0.5, Heading: 1.0, Stamina: 0.9 }
+  };
+
+  function calcOverall(position, skills) {
+    const weights = POSITION_SKILL_WEIGHTS[position] || {};
+    let weightedSum = 0, totalWeight = 0;
+    for (const sk of Object.keys(skills)) {
+      const w = weights[sk] || 1.0;
+      weightedSum += skills[sk] * w;
+      totalWeight += w;
+    }
+    return Math.round(weightedSum / totalWeight);
+  }
+
   const STAFF_ROLES = ['Coach','Scout','Physio'];
   const STAFF_QUALITIES = ['Useless','Poor','Average','Good','Excellent'];
   const STAFF_COSTS = [500, 1500, 3000, 6000, 12000]; // weekly wage
@@ -144,7 +163,7 @@ const MTSM_DATA = (() => {
       if (pos === 'FWD' && (sk === 'Shooting' || sk === 'Pace')) val += 10;
       skills[sk] = Math.max(1, Math.min(99, val));
     }
-    const overall = Math.round(Object.values(skills).reduce((a, b) => a + b, 0) / playerSkills.length);
+    const overall = calcOverall(pos, skills);
     const wage = Math.round((overall * 50 + randInt(0, 500)) / 10) * 10;
     // Age multiplier: young players (17-22) worth more, older (31+) worth less
     const ageMult = age <= 22 ? 1.3 - (age - 17) * 0.04 : age <= 29 ? 1.0 : 1.0 - (age - 29) * 0.07;
@@ -412,6 +431,8 @@ const MTSM_DATA = (() => {
     ALL_SKILLS,
     POSITION_SKILLS_MAP,
     getSkillsForPosition,
+    POSITION_SKILL_WEIGHTS,
+    calcOverall,
     STAFF_ROLES,
     STAFF_QUALITIES,
     STAFF_COSTS,

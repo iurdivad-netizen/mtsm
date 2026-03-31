@@ -311,108 +311,153 @@ const MTSM_ENGINE = (() => {
     return selected.slice(0, 11);
   }
 
+  // Compute average of a specific skill across players of a given position in the starting XI.
+  // Falls back to fallbackSkill if the primary skill doesn't exist (e.g. GK has Handling not Shooting).
+  function _avgSkill(players, position, skill, fallbackSkill) {
+    const group = players.filter(p => p.position === position);
+    if (group.length === 0) return 0;
+    return group.reduce((sum, p) => sum + (p.skills[skill] !== undefined ? p.skills[skill] : (p.skills[fallbackSkill] || 0)), 0) / group.length;
+  }
+
   function calculateTeamStrength(team, options) {
     const available = team.players.filter(p => p.injured === 0);
-    if (available.length < 11) return 30; // penalty for insufficient players
+    if (available.length < 11) return { overall: 30, attack: 30, defense: 30, midfield: 30 };
 
     const starting = getStartingEleven(team);
 
-    let strength = 0;
+    // --- Base OVR (weighted by position) ---
+    let baseOvr = 0;
     for (const p of starting) {
-      strength += p.overall;
+      baseOvr += p.overall;
     }
-    strength /= 11;
+    baseOvr /= 11;
+
+    // --- Skill-based sub-scores (0-99 scale) ---
+    // Attack: FWD shooting + FWD pace + MID passing (chance creation & finishing)
+    const fwdShooting = _avgSkill(starting, 'FWD', 'Shooting');
+    const fwdPace     = _avgSkill(starting, 'FWD', 'Pace');
+    const midPassing  = _avgSkill(starting, 'MID', 'Passing');
+    const fwdCount    = starting.filter(p => p.position === 'FWD').length;
+    const attackRaw   = fwdCount > 0
+      ? (fwdShooting * 0.45 + fwdPace * 0.25 + midPassing * 0.30)
+      : (midPassing * 0.6 + _avgSkill(starting, 'MID', 'Shooting') * 0.4);
+
+    // Defense: DEF tackling + DEF heading + GK handling
+    const defTackling  = _avgSkill(starting, 'DEF', 'Tackling');
+    const defHeading   = _avgSkill(starting, 'DEF', 'Heading');
+    const gkHandling   = _avgSkill(starting, 'GK', 'Handling', 'Tackling');
+    const defenseRaw   = defTackling * 0.40 + defHeading * 0.25 + gkHandling * 0.35;
+
+    // Midfield: MID passing + MID stamina (game control & endurance)
+    const midStamina   = _avgSkill(starting, 'MID', 'Stamina');
+    const midCount     = starting.filter(p => p.position === 'MID').length;
+    const midfieldRaw  = midPassing * 0.55 + midStamina * 0.45;
+
+    // --- Bonuses (same as before) ---
+    let bonus = 0;
 
     // Midfield loading bonus (famous game quirk!)
-    const mids = starting.filter(p => p.position === 'MID').length;
-    if (mids >= 5) strength += 5;
-    if (mids >= 6) strength += 3;
+    if (midCount >= 5) bonus += 5;
+    if (midCount >= 6) bonus += 3;
 
     // Formation bonus (if enabled)
     if (state && state.options && state.options.formationStrategy && team.formation) {
       const formation = FORMATIONS[team.formation];
       if (formation && formation.bonus) {
-        for (const [pos, bonus] of Object.entries(formation.bonus)) {
+        for (const [pos, b] of Object.entries(formation.bonus)) {
           const posCount = starting.filter(p => p.position === pos).length;
           const idealCount = formation[pos] || 0;
           if (posCount >= idealCount) {
-            strength += bonus;
+            bonus += b;
           }
         }
       }
     }
 
     // Coach bonus
-    const coachQ = team.staff.Coach.quality;
-    strength += coachQ * 2;
+    bonus += team.staff.Coach.quality * 2;
 
     // Pitch bonus
-    const pitchLevel = team.ground.pitch;
-    strength += pitchLevel;
+    bonus += team.ground.pitch;
 
     // Morale
     const avgMorale = starting.reduce((s, p) => s + p.morale, 0) / starting.length;
-    strength += (avgMorale - 50) / 10;
+    bonus += (avgMorale - 50) / 10;
 
-    // Form & momentum: recent results influence confidence
+    // Form & momentum
     if (team.form && team.form.length > 0) {
       const wins = team.form.filter(f => f === 'W').length;
       const losses = team.form.filter(f => f === 'L').length;
       const formLen = team.form.length;
+      bonus += wins - losses;
 
-      // Base form bonus: +1 per win, -1 per loss (max ±5)
-      strength += wins - losses;
-
-      // Streak bonus: consecutive same results at the tail amplify the effect
       let streak = 1;
       for (let i = formLen - 2; i >= 0; i--) {
         if (team.form[i] === team.form[formLen - 1]) streak++;
         else break;
       }
       const lastResult = team.form[formLen - 1];
-      if (lastResult === 'W' && streak >= 3) strength += streak; // hot streak
-      if (lastResult === 'L' && streak >= 3) strength -= streak; // slump
+      if (lastResult === 'W' && streak >= 3) bonus += streak;
+      if (lastResult === 'L' && streak >= 3) bonus -= streak;
     }
 
-    // Cup run bonus: lower division teams gain momentum from each cup win
-    // Simulates the real-life "giant-killing" effect where underdogs grow in belief
+    // Cup run bonus
     if (options && options.isCup && team.cupRunWins > 0) {
       const divIdx = options.divisionIndex !== undefined ? options.divisionIndex : 3;
-      // Division 4 gets +3 per cup win, Div 3 gets +2, Div 2 gets +1, Div 1 gets 0
       const perWinBonus = Math.max(0, 3 - divIdx);
-      strength += team.cupRunWins * perWinBonus;
+      bonus += team.cupRunWins * perWinBonus;
     }
 
-    return Math.max(10, strength);
+    return {
+      overall: Math.max(10, baseOvr + bonus),
+      attack: Math.max(5, attackRaw + bonus * 0.3),
+      defense: Math.max(5, defenseRaw + bonus * 0.3),
+      midfield: Math.max(5, midfieldRaw + bonus * 0.3)
+    };
   }
 
   function simulateMatch(homeTeam, awayTeam, options) {
     const homeOpts = options ? { ...options, divisionIndex: options.divisionIndex } : undefined;
     const awayOpts = options ? { ...options, divisionIndex: options.awayDivisionIndex } : undefined;
-    const homeStr = calculateTeamStrength(homeTeam, homeOpts);
-    const awayStr = calculateTeamStrength(awayTeam, awayOpts);
+    const home = calculateTeamStrength(homeTeam, homeOpts);
+    const away = calculateTeamStrength(awayTeam, awayOpts);
 
     // Home advantage (not applied in cup matches)
     const homeAdv = (options && options.isCup) ? 0 : 5;
-    const homeFinal = homeStr + homeAdv;
-    const awayFinal = awayStr;
 
-    // Goal probability based on strength difference (difference-based approach)
-    // Each point of gap shifts probability away from 50%; scaleFactor controls sensitivity
-    const SCALE_FACTOR = 200;
-    const diff = homeFinal - awayFinal;
-    const homeProb = Math.min(0.85, Math.max(0.15, 0.5 + diff / SCALE_FACTOR));
+    // --- Skill-aware goal calculation ---
+    // Home goals: home attack vs away defense, influenced by home midfield
+    // Away goals: away attack vs home defense, influenced by away midfield
+    const SCALE = 200;
 
-    // Generate goals (Poisson-ish)
+    // Midfield battle determines who creates more chances
+    const midDiff = (home.midfield - away.midfield) / SCALE;
+
+    // Home scoring: attack vs opponent defense + midfield advantage
+    const homeAttackDiff = (home.attack - away.defense + homeAdv) / SCALE + midDiff * 0.3;
+    const homeScoreProb = Math.min(0.85, Math.max(0.15, 0.5 + homeAttackDiff));
+
+    // Away scoring: attack vs opponent defense - midfield disadvantage
+    const awayAttackDiff = (away.attack - home.defense) / SCALE - midDiff * 0.3;
+    const awayScoreProb = Math.min(0.85, Math.max(0.15, 0.5 + awayAttackDiff));
+
+    // Generate chances (Poisson-ish based on overall strength gap)
+    const overallDiff = (home.overall + homeAdv) - away.overall;
     const totalGoals = Math.floor(Math.random() * 4) + Math.floor(Math.random() * 2);
+
     let homeGoals = 0;
     let awayGoals = 0;
 
+    // Each goal opportunity: decide who gets the chance, then whether it converts
     for (let i = 0; i < totalGoals; i++) {
-      if (Math.random() < homeProb) {
-        homeGoals++;
+      // Who gets the chance? Influenced by overall + midfield
+      const chanceProb = Math.min(0.80, Math.max(0.20, 0.5 + overallDiff / SCALE + midDiff * 0.2));
+      if (Math.random() < chanceProb) {
+        // Home chance — convert based on attack vs away defense
+        if (Math.random() < homeScoreProb) homeGoals++;
       } else {
-        awayGoals++;
+        // Away chance — convert based on attack vs home defense
+        if (Math.random() < awayScoreProb) awayGoals++;
       }
     }
 
@@ -718,7 +763,7 @@ const MTSM_ENGINE = (() => {
             const gain = Math.random() < 0.07 ? 2 : 1;
             player.skills[skill] = Math.min(99, player.skills[skill] + gain);
             player.overall = Math.round(
-              Object.values(player.skills).reduce((a, b) => a + b, 0) / Object.keys(player.skills).length
+              MTSM_DATA.calcOverall(player.position, player.skills)
             );
             // Recalculate value
             const ageMult = player.age <= 22 ? 1.3 - (player.age - 17) * 0.04 : 1.0;
@@ -1000,7 +1045,7 @@ const MTSM_ENGINE = (() => {
             }
             const oldOvr = player.overall;
             player.overall = Math.round(
-              Object.values(player.skills).reduce((a, b) => a + b, 0) / Object.keys(player.skills).length
+              MTSM_DATA.calcOverall(player.position, player.skills)
             );
             // Recalculate transfer value based on new overall
             const ageMult = player.age <= 22 ? 1.3 - (player.age - 17) * 0.04 : player.age <= 29 ? 1.0 : 1.0 - (player.age - 29) * 0.07;
@@ -1395,7 +1440,7 @@ const MTSM_ENGINE = (() => {
               }
             }
             player.overall = Math.round(
-              Object.values(player.skills).reduce((a, b) => a + b, 0) / Object.keys(player.skills).length
+              MTSM_DATA.calcOverall(player.position, player.skills)
             );
           }
           // After a season on the senior squad, youth players graduate to normal valuation
@@ -2043,7 +2088,7 @@ const MTSM_ENGINE = (() => {
         if (pos === 'FWD' && (sk === 'Shooting' || sk === 'Pace')) val += 5;
         skills[sk] = Math.max(1, Math.min(99, val));
       }
-      const overall = Math.round(Object.values(skills).reduce((a, b) => a + b, 0) / playerSkills.length);
+      const overall = MTSM_DATA.calcOverall(pos, skills);
       const potential = MTSM_DATA.randInt(55, 90); // how good they can become
       const wage = Math.round((overall * 20 + MTSM_DATA.randInt(0, 200)) / 10) * 10;
       // Youth players cost 30% of senior value (unproven but have potential)
@@ -2267,7 +2312,7 @@ const MTSM_ENGINE = (() => {
     // Pick top 3
     const picked = candidates.slice(0, 3);
     for (const c of picked) {
-      const teamStrength = calculateTeamStrength(c.team);
+      const teamStrength = calculateTeamStrength(c.team).overall;
       const avgOverall = c.team.players.length > 0
         ? Math.round(c.team.players.reduce((s, p) => s + p.overall, 0) / c.team.players.length)
         : 0;

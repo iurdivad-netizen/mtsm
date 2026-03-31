@@ -864,7 +864,7 @@ const MTSM_UI = (() => {
       <div class="mt-4 text-muted" style="font-size:13px;">
         Weekly wages: £${team.players.reduce((s, p) => s + p.wage, 0).toLocaleString()}
         • Avg overall: ${Math.round(team.players.reduce((s, p) => s + p.overall, 0) / team.players.length)}
-        • Team strength: ${MTSM_ENGINE.calculateTeamStrength(team).toFixed(1)}
+        • Team strength: ${(() => { const ts = MTSM_ENGINE.calculateTeamStrength(team); return `${ts.overall.toFixed(1)} (ATK ${ts.attack.toFixed(0)} / MID ${ts.midfield.toFixed(0)} / DEF ${ts.defense.toFixed(0)})`; })()}
       </div>
     `;
   }
@@ -1557,7 +1557,7 @@ const MTSM_UI = (() => {
         </table>
       </div>
       <div class="mt-2 text-muted" style="font-size:12px;">
-        Team strength: ${MTSM_ENGINE.calculateTeamStrength(team).toFixed(1)}
+        ${(() => { const ts = MTSM_ENGINE.calculateTeamStrength(team); return `Team strength: ${ts.overall.toFixed(1)} (ATK ${ts.attack.toFixed(0)} / MID ${ts.midfield.toFixed(0)} / DEF ${ts.defense.toFixed(0)})`; })()}
         • If no XI is set, the best 11 by overall are auto-selected on match day.
       </div>
     `;
