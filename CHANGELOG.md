@@ -2,12 +2,40 @@
 
 All notable changes to MULTI PSM are documented in this file.
 
-## 2026-03-27
+## v0.12.0 — 2026-03-31
+
+### Added
+- Position-weighted OVR and skill-aware match engine
+- Handling skill for GK (replaces Shooting for goalkeepers)
+- AI manager training decisions and season-end summaries in activity log
+- AI LOG button now always visible regardless of aiManagers option
+
+### Changed
+- Removed redundant SHARE and PASTE buttons from title screen
+
+## v0.11.0 — 2026-03-29
+
+### Added
+- AI Managers feature with 5 distinct personality types
+- Auto-save to localStorage after each match week
+- Season-phase AI awareness (early, mid, late season strategies)
+- Season history tracking for AI managers
+- Share codes for game states
+- Multi-slot save system
+- Structured AI manager activity log with viewer and export
+
+### Fixed
+- Trophy history recording wrong division after promotion/relegation
+
+## v0.10.0 — 2026-03-27
+
+### Added
+- Difference-based match probability formula for more realistic results
 
 ### Fixed
 - UI now correctly displays 50/50 cup gate split instead of old 75/25
 
-## 2026-03-26
+## v0.9.0 — 2026-03-26
 
 ### Added
 - Potential bonus to youth academy training
@@ -20,7 +48,7 @@ All notable changes to MULTI PSM are documented in this file.
 - Removed home advantage bonus from cup matches
 - Cup gate income now split 50/50 between both clubs (was 75/25)
 
-## 2026-03-25
+## v0.8.0 — 2026-03-25
 
 ### Added
 - Transfer market refresh every 9 weeks with alert notification
@@ -35,7 +63,7 @@ All notable changes to MULTI PSM are documented in this file.
 ### Fixed
 - Trophy history: corrected Best Finish stat and added null safety
 
-## 2026-03-24
+## v0.7.0 — 2026-03-24
 
 ### Added
 - Two-column training screen: user choice vs assistant coach auto-assignments
@@ -51,7 +79,7 @@ All notable changes to MULTI PSM are documented in this file.
 - Youth academy not resetting on club transfer
 - Main team assistant coach now resets on club transfer
 
-## 2026-03-23
+## v0.6.0 — 2026-03-23
 
 ### Added
 - Career management: club transfer offers and resignation
@@ -65,7 +93,7 @@ All notable changes to MULTI PSM are documented in this file.
 ### Fixed
 - Youth player value not updating on graduation
 
-## 2026-03-22
+## v0.5.0 — 2026-03-22
 
 ### Added
 - Min/max age filters on the transfer list
@@ -75,7 +103,7 @@ All notable changes to MULTI PSM are documented in this file.
 ### Fixed
 - Transaction sync: missing recordFinance calls and weeklyFinances key collision
 
-## 2026-03-21
+## v0.4.0 — 2026-03-21
 
 ### Added
 - Youth academy quality upgrades and youth coach system (Basic to Elite tiers)
@@ -94,7 +122,7 @@ All notable changes to MULTI PSM are documented in this file.
 ### Fixed
 - Youth academy refresh now adds prospects instead of replacing the pool
 
-## 2026-03-20
+## v0.3.0 — 2026-03-20
 
 ### Added
 - Attendance and ticket income for cup matches (75/25 home/away split)
@@ -111,7 +139,7 @@ All notable changes to MULTI PSM are documented in this file.
 - League Trophy now completes before end of season
 - Records section shows season stats for old saves with matchLog compatibility
 
-## 2026-03-19
+## v0.2.0 — 2026-03-19
 
 ### Added
 - National Cup and League Trophy knockout competitions
@@ -125,7 +153,7 @@ All notable changes to MULTI PSM are documented in this file.
 ### Changed
 - Dashboard layout reordered: stats above buttons, news below
 
-## 2026-03-18
+## v0.1.0 — 2026-03-18
 
 ### Added
 - Initial release: Multi-Player Soccer Manager web game

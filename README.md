@@ -1,5 +1,7 @@
 # MULTI PSM
 
+> Version 0.12.0 | Last updated: 2026-03-31
+
 A retro-styled, browser-based football management simulation game inspired by classic 1991 management games. Manage your club across 4 divisions, compete in cup competitions, develop youth talent, and climb to the top.
 
 Built with vanilla JavaScript, HTML5, and CSS3 -- no dependencies, no build step. Just open and play. Works offline as a PWA.
@@ -8,10 +10,10 @@ Built with vanilla JavaScript, HTML5, and CSS3 -- no dependencies, no build step
 
 1. Open `index.html` in any modern web browser (or install as a PWA for offline play)
 2. Choose 1-4 human players and pick your teams from Division 4
-3. Toggle optional game modes (cups, youth academy, etc.)
+3. Toggle optional game modes (cups, youth academy, AI managers, etc.)
 4. Click **Play** each week to advance the season
 
-Save/load your progress at any time via JSON file export.
+Save/load your progress at any time via JSON file export, save slots, or auto-save.
 
 ## Features
 
@@ -20,13 +22,22 @@ Save/load your progress at any time via JSON file export.
 - **4-Division League System** -- 64 teams (16 per division) with full round-robin seasons (30 matches)
 - **Multiplayer** -- Up to 4 human managers in a shared game, each starting in Division 4
 - **Promotion & Relegation** -- Top 2 promoted, bottom 2 relegated each season
-- **Match Simulation** -- Results driven by team strength, formation, morale, form & momentum, home advantage, and coach/pitch quality
-- **Save/Load** -- Full game state saved as JSON, reload anytime
+- **Match Simulation** -- Position-weighted OVR, skill-aware engine with form & momentum bonuses
+- **Save/Load** -- JSON file export, multi-slot save system, and auto-save after each match week
 - **PWA Support** -- Install on your device and play offline
+
+### AI Managers
+
+- 5 distinct AI personality types controlling non-human teams
+- Season-phase awareness (early, mid, late season strategies)
+- Structured activity log with viewer and export
+- Training decisions and season-end summaries logged
 
 ### Squad Management
 
-- Squads of up to 25 players with 6 skill attributes (Pace, Shooting, Passing, Tackling, Heading, Stamina)
+- Squads of up to 25 players with 6 skill attributes (Pace, Shooting/Handling, Passing, Tackling, Heading, Stamina)
+- **GK Handling skill** -- Goalkeepers use Handling instead of Shooting
+- **Position-weighted OVR** -- Overall rating accounts for position-relevant skills
 - Player positions: GK, DEF, MID, FWD
 - Injury system (1-6 week absences), player aging, and automatic retirement at 37+
 - Starting XI selection via the Tactics screen with formation-aware best XI auto-selection
@@ -100,6 +111,8 @@ Save/load your progress at any time via JSON file export.
 - Formation tooltips showing position requirements
 - Persistent notifications
 - Color-coded match results: green for wins, yellow for draws, red for losses
+- Auto-save to localStorage after each match week
+- Multi-slot save system
 
 ## Optional Game Modes
 
@@ -112,6 +125,7 @@ Toggle these on or off at game setup:
 | **Youth Academy** | Scout young prospects (age 16-18), upgrade academy quality and youth coach, potential bonus to training, graduate players after one season. |
 | **Transfer Negotiation** | Multi-stage bidding for expensive transfers with counter-offers and minimum acceptance thresholds. |
 | **Cup Competitions** | Division cups, National Cup (all 64 teams), and League Trophy with knockout brackets and prize money. |
+| **AI Managers** | AI-controlled managers with 5 personality types, season-phase awareness, and activity logging. |
 
 ## Cup Competitions
 
