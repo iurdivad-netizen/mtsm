@@ -153,6 +153,7 @@ const MTSM_UI = (() => {
             <button class="btn btn-small" onclick="MTSM_UI._toggleTitlePanel('changelog')">📜 CHANGELOG</button>
           </div>
           <div class="text-muted" style="font-size:14px;">Up to 4 players • 64 teams • 4 divisions</div>
+          <div class="title-version">v0.12.0 • Last updated 2026-03-31</div>
         </div>
         <div id="title-info-panel"></div>
         <input type="file" id="load-file-input" accept=".json" style="display:none;" onchange="MTSM_UI._handleLoadFile(event)">
@@ -182,14 +183,16 @@ const MTSM_UI = (() => {
       <ul>
         <li><b>4-Division League</b> — 64 teams (16 per division), full 30-match round-robin seasons</li>
         <li><b>Multiplayer</b> — Up to 4 human managers in a shared game</li>
+        <li><b>AI Managers</b> — 5 personality types with season-phase awareness and activity logging</li>
         <li><b>Promotion &amp; Relegation</b> — Top 2 up, bottom 2 down each season</li>
-        <li><b>Match Simulation</b> — Strength, formation, morale, form, momentum, home advantage</li>
-        <li><b>Save/Load</b> — Full game state as JSON; works offline as a PWA</li>
+        <li><b>Match Engine</b> — Position-weighted OVR, skill-aware simulation with form &amp; momentum</li>
+        <li><b>Save/Load</b> — JSON export, multi-slot saves, auto-save; works offline as a PWA</li>
       </ul>
 
       <h3>Squad &amp; Training</h3>
       <ul>
-        <li>Squads up to 25 players with 6 skill attributes</li>
+        <li>Squads up to 25 players with 6 skill attributes (GK uses Handling instead of Shooting)</li>
+        <li>Position-weighted OVR — rating reflects position-relevant skills</li>
         <li>Formation-aware best XI auto-selection</li>
         <li>Two-column training: your picks + assistant coach auto-assignments</li>
         <li>Rare breakthrough training (7% chance for +2 skill gain)</li>
@@ -199,7 +202,7 @@ const MTSM_UI = (() => {
       <h3>Finances &amp; Transfers</h3>
       <ul>
         <li>Weekly wages, gate income, detailed bank statements</li>
-        <li>Emergency loan system with selectable repayment terms</li>
+        <li>Emergency loan system with selectable repayment terms (30–150 weeks)</li>
         <li>Transfer market with position, rating, and age filters</li>
         <li>Market refreshes every 9 weeks with alert notifications</li>
         <li>Random events: TV bonuses, sponsorships, grants, fines</li>
@@ -239,12 +242,13 @@ const MTSM_UI = (() => {
         <tr><td>🌱</td><td><b>Youth Academy</b></td><td>Scout prospects (16–18), upgrade academy, potential training bonus.</td></tr>
         <tr><td>🤝</td><td><b>Negotiation</b></td><td>Bid/counter-bid rounds for expensive transfers.</td></tr>
         <tr><td>🏆</td><td><b>Cups</b></td><td>Division cups, National Cup, League Trophy with prize money.</td></tr>
+        <tr><td>🤖</td><td><b>AI Managers</b></td><td>5 personality types with season-phase awareness and logs.</td></tr>
       </table>
 
       <h3>Cup Competitions</h3>
       <ul>
         <li><b>Division Cups</b> — Knockout within each division (every 3 weeks)</li>
-        <li><b>National Cup</b> — All 64 teams, single knockout bracket</li>
+        <li><b>National Cup</b> — All 64 teams, single knockout bracket with division labels</li>
         <li><b>League Trophy</b> — Separate all-teams tournament (every 5 weeks)</li>
         <li>50/50 gate split in cups; no home advantage; momentum bonus for underdogs</li>
       </ul>
@@ -255,12 +259,31 @@ const MTSM_UI = (() => {
     return `<div class="title-info-box">
       <h2>Changelog</h2>
 
-      <h3>2026-03-27</h3>
+      <h3>v0.12.0 — 2026-03-31</h3>
       <ul>
+        <li>Position-weighted OVR and skill-aware match engine</li>
+        <li>Handling skill for GK (replaces Shooting)</li>
+        <li>AI manager training decisions &amp; season-end summaries in log</li>
+        <li>AI LOG button always visible</li>
+      </ul>
+
+      <h3>v0.11.0 — 2026-03-29</h3>
+      <ul>
+        <li>AI Managers with 5 personality types</li>
+        <li>Auto-save to localStorage after each match week</li>
+        <li>Season-phase AI awareness, season history, share codes</li>
+        <li>Multi-slot save system</li>
+        <li>Structured AI manager activity log with viewer &amp; export</li>
+        <li><b>Fixed:</b> Trophy history recording wrong division</li>
+      </ul>
+
+      <h3>v0.10.0 — 2026-03-27</h3>
+      <ul>
+        <li>Difference-based match probability formula</li>
         <li><b>Fixed:</b> UI displays correct 50/50 cup gate split</li>
       </ul>
 
-      <h3>2026-03-26</h3>
+      <h3>v0.9.0 — 2026-03-26</h3>
       <ul>
         <li>Potential bonus to youth academy training</li>
         <li>Rare breakthrough training: 7% chance for +2 skill gain</li>
@@ -271,7 +294,7 @@ const MTSM_UI = (() => {
         <li>Cup gate income now 50/50 split (was 75/25)</li>
       </ul>
 
-      <h3>2026-03-25</h3>
+      <h3>v0.8.0 — 2026-03-25</h3>
       <ul>
         <li>Transfer market refresh every 9 weeks with alerts</li>
         <li>Color-coded match results (green/yellow/red)</li>
@@ -281,7 +304,7 @@ const MTSM_UI = (() => {
         <li><b>Fixed:</b> Trophy history Best Finish stat</li>
       </ul>
 
-      <h3>2026-03-24</h3>
+      <h3>v0.7.0 — 2026-03-24</h3>
       <ul>
         <li>Two-column training screen (user + assistant coach)</li>
         <li>Assistant coach skill target handover</li>
@@ -291,7 +314,7 @@ const MTSM_UI = (() => {
         <li><b>Fixed:</b> Career view crash, loan repayment, youth academy reset on transfer</li>
       </ul>
 
-      <h3>2026-03-23</h3>
+      <h3>v0.6.0 — 2026-03-23</h3>
       <ul>
         <li>Career management: club transfer offers &amp; resignation</li>
         <li>Club approach offers (expire after 1 week)</li>
@@ -302,7 +325,7 @@ const MTSM_UI = (() => {
         <li><b>Fixed:</b> Youth player value on graduation</li>
       </ul>
 
-      <h3>2026-03-22</h3>
+      <h3>v0.5.0 — 2026-03-22</h3>
       <ul>
         <li>Min/max age filters on transfer list</li>
         <li>Multiple type filters on news board</li>
@@ -310,7 +333,7 @@ const MTSM_UI = (() => {
         <li><b>Fixed:</b> Transaction sync issues</li>
       </ul>
 
-      <h3>2026-03-21</h3>
+      <h3>v0.4.0 — 2026-03-21</h3>
       <ul>
         <li>Youth academy quality upgrades &amp; youth coach system</li>
         <li>Club logo crests (procedurally generated)</li>
@@ -319,7 +342,7 @@ const MTSM_UI = (() => {
         <li><b>Fixed:</b> Youth academy prospect refresh</li>
       </ul>
 
-      <h3>2026-03-20</h3>
+      <h3>v0.3.0 — 2026-03-20</h3>
       <ul>
         <li>Cup match attendance &amp; ticket income</li>
         <li>End-of-season division tables</li>
@@ -330,7 +353,7 @@ const MTSM_UI = (() => {
         <li><b>Fixed:</b> Season tables, League Trophy timing, records compat</li>
       </ul>
 
-      <h3>2026-03-19</h3>
+      <h3>v0.2.0 — 2026-03-19</h3>
       <ul>
         <li>National Cup &amp; League Trophy competitions</li>
         <li>Scouted player badges on transfer list</li>
@@ -338,7 +361,7 @@ const MTSM_UI = (() => {
         <li><b>Fixed:</b> Promotion/relegation identity, dashboard visibility</li>
       </ul>
 
-      <h3>2026-03-18</h3>
+      <h3>v0.1.0 — 2026-03-18</h3>
       <ul>
         <li>Initial release: Multi-Player Soccer Manager</li>
         <li>Save/load, random team selection, 5 game options</li>

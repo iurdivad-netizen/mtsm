@@ -214,6 +214,14 @@ body::after {
   white-space: pre;
 }
 
+.title-version {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: rgba(0, 221, 68, 0.5);
+  letter-spacing: 1px;
+  margin-top: 4px;
+}
+
 /* --- Title info panels (Features / Changelog) --- */
 .title-info-box {
   text-align: left;
