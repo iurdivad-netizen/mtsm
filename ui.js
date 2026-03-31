@@ -147,10 +147,7 @@ const MTSM_UI = (() => {
           })()}
           <button class="btn btn-accent" onclick="MTSM_UI.renderSetup()">NEW GAME</button>
           <button class="btn" onclick="MTSM_UI._triggerLoad()">LOAD GAME</button>
-          <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
-            <button class="btn btn-small" onclick="MTSM_UI._showSaveSlotsDialog()">🗄 SAVE SLOTS</button>
-            <button class="btn btn-small" onclick="MTSM_UI._pasteShareCode()">📥 PASTE SHARE CODE</button>
-          </div>
+          <button class="btn btn-small" onclick="MTSM_UI._showSaveSlotsDialog()">🗄 SAVE SLOTS</button>
           <div style="display:flex;gap:12px;">
             <button class="btn btn-small" onclick="MTSM_UI._toggleTitlePanel('features')">📖 FEATURES</button>
             <button class="btn btn-small" onclick="MTSM_UI._toggleTitlePanel('changelog')">📜 CHANGELOG</button>
@@ -596,8 +593,6 @@ const MTSM_UI = (() => {
             <button class="btn btn-small" onclick="MTSM_UI._saveGame()" title="Save game to file">💾 SAVE</button>
             <button class="btn btn-small" onclick="MTSM_UI._triggerLoad()" title="Load game from file">📂 LOAD</button>
             <button class="btn btn-small" onclick="MTSM_UI._showSaveSlotsDialog()" title="Save/Load slots">🗄 SLOTS</button>
-            <button class="btn btn-small" onclick="MTSM_UI._copyShareCode()" title="Copy share code to clipboard">📋 SHARE</button>
-            <button class="btn btn-small" onclick="MTSM_UI._pasteShareCode()" title="Load game from share code">📥 PASTE</button>
             <button class="btn btn-small" onclick="MTSM_UI._showAILog()" title="View AI Manager activity log">📊 AI LOG</button>
           </div>
         </div>
@@ -3584,118 +3579,6 @@ const MTSM_UI = (() => {
     showNotification('AI log exported as CSV!');
   }
 
-  // ===== SHARE CODE SYSTEM (Cross-Device) =====
-
-  function _generateShareCode() {
-    const data = MTSM_ENGINE.saveGame();
-    if (!data) {
-      showNotification('No game to share!', true);
-      return null;
-    }
-    try {
-      return btoa(unescape(encodeURIComponent(JSON.stringify(data))));
-    } catch (e) {
-      showNotification('Error generating share code: ' + e.message, true);
-      return null;
-    }
-  }
-
-  function _loadShareCode(code) {
-    if (!code || !code.trim()) {
-      showNotification('No share code provided!', true);
-      return false;
-    }
-    try {
-      const json = decodeURIComponent(escape(atob(code.trim())));
-      const data = JSON.parse(json);
-      if (!data.divisions || !data.humanPlayers) {
-        showNotification('Invalid share code!', true);
-        return false;
-      }
-      const success = MTSM_ENGINE.loadGame(data);
-      if (success) {
-        showNotification('Game loaded from share code!');
-        renderGame();
-        return true;
-      } else {
-        showNotification('Failed to load share code!', true);
-        return false;
-      }
-    } catch (e) {
-      showNotification('Invalid share code: ' + e.message, true);
-      return false;
-    }
-  }
-
-  function _copyShareCode() {
-    const code = _generateShareCode();
-    if (!code) return;
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(code).then(() => {
-        showNotification('Share code copied to clipboard!');
-      }).catch(() => {
-        _showShareCodeModal(code);
-      });
-    } else {
-      _showShareCodeModal(code);
-    }
-  }
-
-  function _showShareCodeModal(code) {
-    // Fallback: show modal with code to manually copy
-    let modal = document.getElementById('share-code-modal');
-    if (modal) modal.remove();
-    modal = document.createElement('div');
-    modal.id = 'share-code-modal';
-    modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;';
-    modal.innerHTML = `
-      <div style="background:#111;border:2px solid var(--color-primary,#00ff00);padding:24px;max-width:500px;width:90%;font-family:inherit;">
-        <div style="color:var(--color-primary,#00ff00);margin-bottom:12px;font-size:16px;">SHARE CODE</div>
-        <textarea id="share-code-text" readonly style="width:100%;height:120px;background:#000;color:var(--color-primary,#00ff00);border:1px solid var(--color-primary,#00ff00);font-family:monospace;font-size:11px;padding:8px;resize:none;">${code || ''}</textarea>
-        <div style="display:flex;gap:8px;margin-top:12px;">
-          <button class="btn btn-small" onclick="document.getElementById('share-code-text').select();document.execCommand('copy');MTSM_UI.showNotification('Copied!');">COPY</button>
-          <button class="btn btn-small" onclick="document.getElementById('share-code-modal').remove();">CLOSE</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(modal);
-  }
-
-  function _pasteShareCode() {
-    if (navigator.clipboard && navigator.clipboard.readText) {
-      navigator.clipboard.readText().then(text => {
-        if (text && text.trim()) {
-          _loadShareCode(text);
-        } else {
-          _showPasteShareCodeModal();
-        }
-      }).catch(() => {
-        _showPasteShareCodeModal();
-      });
-    } else {
-      _showPasteShareCodeModal();
-    }
-  }
-
-  function _showPasteShareCodeModal() {
-    let modal = document.getElementById('share-code-modal');
-    if (modal) modal.remove();
-    modal = document.createElement('div');
-    modal.id = 'share-code-modal';
-    modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;';
-    modal.innerHTML = `
-      <div style="background:#111;border:2px solid var(--color-primary,#00ff00);padding:24px;max-width:500px;width:90%;font-family:inherit;">
-        <div style="color:var(--color-primary,#00ff00);margin-bottom:12px;font-size:16px;">PASTE SHARE CODE</div>
-        <textarea id="paste-code-text" style="width:100%;height:120px;background:#000;color:var(--color-primary,#00ff00);border:1px solid var(--color-primary,#00ff00);font-family:monospace;font-size:11px;padding:8px;resize:none;" placeholder="Paste your share code here..."></textarea>
-        <div style="display:flex;gap:8px;margin-top:12px;">
-          <button class="btn btn-small" onclick="MTSM_UI._loadShareCode(document.getElementById('paste-code-text').value);document.getElementById('share-code-modal').remove();">LOAD</button>
-          <button class="btn btn-small" onclick="document.getElementById('share-code-modal').remove();">CANCEL</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(modal);
-  }
-
   // ===== MULTI-SLOT SAVE SYSTEM =====
 
   const SAVE_SLOT_KEYS = ['mtsm_save_1', 'mtsm_save_2', 'mtsm_save_3'];
@@ -3879,9 +3762,6 @@ const MTSM_UI = (() => {
     _showLoanTermsModal,
     _confirmLoanTerms,
     _changeLoanTerm,
-    _copyShareCode,
-    _pasteShareCode,
-    _loadShareCode,
     _showSaveSlotsDialog,
     _saveToSlot,
     _loadFromSlot,
