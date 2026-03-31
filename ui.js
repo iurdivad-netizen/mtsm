@@ -598,7 +598,7 @@ const MTSM_UI = (() => {
             <button class="btn btn-small" onclick="MTSM_UI._showSaveSlotsDialog()" title="Save/Load slots">🗄 SLOTS</button>
             <button class="btn btn-small" onclick="MTSM_UI._copyShareCode()" title="Copy share code to clipboard">📋 SHARE</button>
             <button class="btn btn-small" onclick="MTSM_UI._pasteShareCode()" title="Load game from share code">📥 PASTE</button>
-            ${state.options.aiManagers ? '<button class="btn btn-small" onclick="MTSM_UI._showAILog()" title="View AI Manager activity log">📊 AI LOG</button>' : ''}
+            <button class="btn btn-small" onclick="MTSM_UI._showAILog()" title="View AI Manager activity log">📊 AI LOG</button>
           </div>
         </div>
         <input type="file" id="load-file-input" accept=".json" style="display:none;" onchange="MTSM_UI._handleLoadFile(event)">
