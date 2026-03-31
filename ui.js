@@ -809,8 +809,8 @@ const MTSM_UI = (() => {
         va = a.overall; vb = b.overall;
       } else if (col === 'wage') {
         va = a.wage; vb = b.wage;
-      } else if (MTSM_DATA.SKILLS.includes(col)) {
-        va = a.skills[col]; vb = b.skills[col];
+      } else if (MTSM_DATA.ALL_SKILLS.includes(col)) {
+        va = a.skills[col] || 0; vb = b.skills[col] || 0;
       } else {
         va = positions.indexOf(a.position); vb = positions.indexOf(b.position);
       }
@@ -836,7 +836,7 @@ const MTSM_UI = (() => {
               <th class="${sortClass('name')}" onclick="MTSM_UI._sortSquad('name')">Name${sortIcon('name')}</th>
               <th class="${sortClass('age')}" onclick="MTSM_UI._sortSquad('age')">Age${sortIcon('age')}</th>
               <th class="${sortClass('overall')}" onclick="MTSM_UI._sortSquad('overall')">Ovr${sortIcon('overall')}</th>
-              ${MTSM_DATA.SKILLS.map(s => `<th class="${sortClass(s)}" onclick="MTSM_UI._sortSquad('${s}')">${s.substring(0, 3)}${sortIcon(s)}</th>`).join('')}
+              ${MTSM_DATA.ALL_SKILLS.map(s => `<th class="${sortClass(s)}" onclick="MTSM_UI._sortSquad('${s}')">${s.substring(0, 3)}${sortIcon(s)}</th>`).join('')}
               <th>Pot</th>
               <th class="${sortClass('wage')}" onclick="MTSM_UI._sortSquad('wage')">Wage${sortIcon('wage')}</th>
               <th>Status</th>
@@ -849,7 +849,7 @@ const MTSM_UI = (() => {
                 <td>${p.name}</td>
                 <td class="num">${p.age}</td>
                 <td class="num text-accent">${p.overall}</td>
-                ${MTSM_DATA.SKILLS.map(s => `<td class="num">${p.skills[s]}</td>`).join('')}
+                ${MTSM_DATA.ALL_SKILLS.map(s => `<td class="num">${p.skills[s] !== undefined ? p.skills[s] : '-'}</td>`).join('')}
                 <td class="num">${p.isYouth && p.potential ? `<span class="text-success">${p.potential}</span>` : '—'}</td>
                 <td class="num">£${p.wage}</td>
                 <td>${p.injured > 0 ? `<span class="text-danger">INJ ${p.injured}w</span>` :
@@ -899,8 +899,8 @@ const MTSM_UI = (() => {
         return tDir * a.name.localeCompare(b.name);
       } else if (tCol === 'overall') {
         va = a.overall; vb = b.overall;
-      } else if (MTSM_DATA.SKILLS.includes(tCol)) {
-        va = a.skills[tCol]; vb = b.skills[tCol];
+      } else if (MTSM_DATA.ALL_SKILLS.includes(tCol)) {
+        va = a.skills[tCol] || 0; vb = b.skills[tCol] || 0;
       } else {
         va = positions.indexOf(a.position); vb = positions.indexOf(b.position);
       }
@@ -922,7 +922,7 @@ const MTSM_UI = (() => {
           <select onchange="MTSM_UI._setGroupTraining('${pos}', this.value); this.selectedIndex=0;"
             style="font-size:11px;padding:2px 4px;">
             <option value="">All ${pos}s…</option>
-            ${MTSM_DATA.SKILLS.map(s => `<option value="${s}">${s}</option>`).join('')}
+            ${MTSM_DATA.getSkillsForPosition(pos).map(s => `<option value="${s}">${s}</option>`).join('')}
             <option value="_none">— Clear —</option>
           </select>
         `).join('')}
@@ -935,7 +935,7 @@ const MTSM_UI = (() => {
               <th class="${tSortClass('name')}" onclick="MTSM_UI._sortTraining('name')">Player${tSortIcon('name')}</th>
               <th class="${tSortClass('position')}" onclick="MTSM_UI._sortTraining('position')">Pos${tSortIcon('position')}</th>
               <th class="${tSortClass('overall')}" onclick="MTSM_UI._sortTraining('overall')">Ovr${tSortIcon('overall')}</th>
-              ${MTSM_DATA.SKILLS.map(s => `<th class="${tSortClass(s)}" onclick="MTSM_UI._sortTraining('${s}')">${s.substring(0, 3)}${tSortIcon(s)}</th>`).join('')}
+              ${MTSM_DATA.ALL_SKILLS.map(s => `<th class="${tSortClass(s)}" onclick="MTSM_UI._sortTraining('${s}')">${s.substring(0, 3)}${tSortIcon(s)}</th>`).join('')}
               <th>Your Choice</th>
               ${hasAsstCoach ? '<th>Active</th>' : ''}
             </tr>
@@ -952,11 +952,11 @@ const MTSM_UI = (() => {
                 <td>${p.name}${p.injured > 0 ? ' <span class="text-danger">(INJ)</span>' : ''}</td>
                 <td class="pos-${p.position.toLowerCase()}">${p.position}</td>
                 <td class="num text-accent">${p.overall}</td>
-                ${MTSM_DATA.SKILLS.map(s => `<td class="num">${p.skills[s]}</td>`).join('')}
+                ${MTSM_DATA.ALL_SKILLS.map(s => `<td class="num">${p.skills[s] !== undefined ? p.skills[s] : '-'}</td>`).join('')}
                 <td>
                   <select onchange="MTSM_UI._setTraining('${p.id}', this.value)" style="font-size:12px;padding:2px 4px;">
                     <option value="">— None —</option>
-                    ${MTSM_DATA.SKILLS.map(s => `<option value="${s}" ${p.userTraining === s ? 'selected' : ''}>${s}</option>`).join('')}
+                    ${Object.keys(p.skills).map(s => `<option value="${s}" ${p.userTraining === s ? 'selected' : ''}>${s}</option>`).join('')}
                   </select>
                 </td>
                 ${hasAsstCoach ? `
@@ -1523,7 +1523,7 @@ const MTSM_UI = (() => {
           <thead>
             <tr>
               <th></th><th>Pos</th><th>Name</th><th>Age</th><th>Ovr</th>
-              ${MTSM_DATA.SKILLS.map(s => `<th>${s.substring(0, 3)}</th>`).join('')}
+              ${MTSM_DATA.ALL_SKILLS.map(s => `<th>${s.substring(0, 3)}</th>`).join('')}
               <th>Status</th>
             </tr>
           </thead>
@@ -1537,7 +1537,7 @@ const MTSM_UI = (() => {
                   <td>${p.name}</td>
                   <td class="num">${p.age}</td>
                   <td class="num text-accent">${p.overall}</td>
-                  ${MTSM_DATA.SKILLS.map(s => `<td class="num">${p.skills[s]}</td>`).join('')}
+                  ${MTSM_DATA.ALL_SKILLS.map(s => `<td class="num">${p.skills[s] !== undefined ? p.skills[s] : '-'}</td>`).join('')}
                   <td>${isSelected ? '<span class="text-success">STARTING</span>' : '<span class="text-muted">Bench</span>'}</td>
                 </tr>
               `;
@@ -1549,7 +1549,7 @@ const MTSM_UI = (() => {
                 <td>${p.name}</td>
                 <td class="num">${p.age}</td>
                 <td class="num">${p.overall}</td>
-                ${MTSM_DATA.SKILLS.map(s => `<td class="num">${p.skills[s]}</td>`).join('')}
+                ${MTSM_DATA.ALL_SKILLS.map(s => `<td class="num">${p.skills[s] !== undefined ? p.skills[s] : '-'}</td>`).join('')}
                 <td><span class="text-danger">INJ ${p.injured}w</span></td>
               </tr>
             `).join('')}
@@ -1712,7 +1712,7 @@ const MTSM_UI = (() => {
             <thead>
               <tr>
                 <th>Pos</th><th>Name</th><th>Age</th>
-                ${MTSM_DATA.SKILLS.map(s => `<th>${s.substring(0, 3)}</th>`).join('')}
+                ${MTSM_DATA.ALL_SKILLS.map(s => `<th>${s.substring(0, 3)}</th>`).join('')}
                 <th>Ovr</th><th>Pot</th><th>Fee</th><th>Wage</th>
                 ${ycQuality > 0 ? '<th>Your Choice</th>' : ''}
                 ${ycQuality > 0 && yacQuality > 0 ? '<th>Active</th>' : ''}
@@ -1731,7 +1731,7 @@ const MTSM_UI = (() => {
                   <td class="pos-${p.position.toLowerCase()}">${p.position}</td>
                   <td>${p.name}</td>
                   <td class="num">${p.age}</td>
-                  ${MTSM_DATA.SKILLS.map(s => `<td class="num">${p.skills[s]}</td>`).join('')}
+                  ${MTSM_DATA.ALL_SKILLS.map(s => `<td class="num">${p.skills[s] !== undefined ? p.skills[s] : '-'}</td>`).join('')}
                   <td class="num text-accent">${p.overall}</td>
                   <td class="num text-success">${p.potential}</td>
                   <td class="num">£${p.value.toLocaleString()}</td>
@@ -1740,7 +1740,7 @@ const MTSM_UI = (() => {
                     <td>
                       <select onchange="MTSM_UI._setYouthTraining(${idx}, this.value)" style="font-size:11px;padding:2px;">
                         <option value="">—</option>
-                        ${MTSM_DATA.SKILLS.map(s => `<option value="${s}" ${p.userTraining === s ? 'selected' : ''}>${s.substring(0,3)}</option>`).join('')}
+                        ${Object.keys(p.skills).map(s => `<option value="${s}" ${p.userTraining === s ? 'selected' : ''}>${s.substring(0,3)}</option>`).join('')}
                       </select>
                     </td>
                   ` : ''}
