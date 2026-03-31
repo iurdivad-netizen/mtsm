@@ -2601,7 +2601,14 @@ const MTSM_ENGINE = (() => {
         if (state.week % 4 === 0) {
           const pos = _getTeamLeaguePosition(team, d);
           const totalTeams = state.divisions[d].teams.length;
+          const inBottom4 = pos > totalTeams - 4;
+          const inTop4 = pos <= 4;
           _applyAITrainingStyle(team, personality, pos, totalTeams);
+          const style = inBottom4 ? 'defensive (bottom 4 override)' : inTop4 ? 'offensive (top 4 override)' : personality.trainingStyle;
+          _logAIDecision(team, aiData, personality, 'training', {
+            division: d, leaguePos: pos,
+            detail: `Training refresh: style=${style}, pos ${pos}/${totalTeams}`
+          });
         }
 
         // 4. TRANSFER DECISIONS (every 3-5 weeks depending on personality)
@@ -3066,7 +3073,7 @@ const MTSM_ENGINE = (() => {
         const aiData = state.aiManagerData[teamName];
         if (!aiData) continue;
         if (!aiData.seasonHistory) aiData.seasonHistory = [];
-        aiData.seasonHistory.push({
+        const seasonRecord = {
           season: state.season,
           division: d + 1,
           position: idx + 1,
@@ -3074,7 +3081,19 @@ const MTSM_ENGINE = (() => {
           sells: aiData.seasonSells || 0,
           promoted: promotedNames.has(teamName),
           relegated: relegatedNames.has(teamName)
-        });
+        };
+        aiData.seasonHistory.push(seasonRecord);
+        // Log season-end summary for each AI team
+        const personality = _getAIPersonality(teamName);
+        if (personality) {
+          const team = state.divisions[d].teams.find(t => t.name === teamName);
+          if (team) {
+            _logAIDecision(team, aiData, personality, 'season_end', {
+              division: d, leaguePos: idx + 1,
+              detail: `Season ${state.season} finished: Div ${d + 1}, pos ${idx + 1}/${table.length}, ${seasonRecord.buys} buys, ${seasonRecord.sells} sells${seasonRecord.promoted ? ', PROMOTED' : ''}${seasonRecord.relegated ? ', RELEGATED' : ''}`
+            });
+          }
+        }
       }
     }
   }
@@ -3119,7 +3138,7 @@ const MTSM_ENGINE = (() => {
           team: entry.team, personality: entry.personality, manager: entry.manager,
           buys: 0, sells: 0, emergencySells: 0, panicBuys: 0,
           formationChanges: 0, staffUpgrades: 0, groundUpgrades: 0,
-          transfersSkipped: 0, squadFills: 0,
+          transfersSkipped: 0, squadFills: 0, trainingRefreshes: 0, seasonsCompleted: 0,
           byPhase: { early: 0, mid: 0, late: 0 },
           entries: []
         };
@@ -3134,6 +3153,8 @@ const MTSM_ENGINE = (() => {
       else if (entry.action === 'ground_upgrade') t.groundUpgrades++;
       else if (entry.action === 'transfer_skipped') t.transfersSkipped++;
       else if (entry.action === 'squad_fill') t.squadFills++;
+      else if (entry.action === 'training') t.trainingRefreshes++;
+      else if (entry.action === 'season_end') t.seasonsCompleted++;
       if (entry.phase) t.byPhase[entry.phase]++;
       t.entries.push(entry);
     }
