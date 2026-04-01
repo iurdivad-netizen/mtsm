@@ -198,7 +198,8 @@ const MTSM_SIM = (() => {
   }
 
   function flushAILog(collector, personalityMap) {
-    const log = MTSM_ENGINE.getAIManagerLog();
+    const state = MTSM_ENGINE.getState();
+    const log = (state && state.aiManagerLog) ? state.aiManagerLog : [];
     for (const entry of log) {
       const team = entry.team;
       if (!collector.decisionSummaries[team]) {
@@ -223,7 +224,6 @@ const MTSM_SIM = (() => {
       }
     }
     // Clear the log to free memory
-    const state = MTSM_ENGINE.getState();
     if (state) state.aiManagerLog = [];
   }
 
