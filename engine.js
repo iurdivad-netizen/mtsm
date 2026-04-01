@@ -416,6 +416,18 @@ const MTSM_ENGINE = (() => {
     };
   }
 
+  // Poisson random variate generator (Knuth algorithm)
+  function _poissonRandom(lambda) {
+    const L = Math.exp(-lambda);
+    let k = 0;
+    let p = 1;
+    do {
+      k++;
+      p *= Math.random();
+    } while (p > L);
+    return k - 1;
+  }
+
   function simulateMatch(homeTeam, awayTeam, options) {
     const homeOpts = options ? { ...options, divisionIndex: options.divisionIndex } : undefined;
     const awayOpts = options ? { ...options, divisionIndex: options.awayDivisionIndex } : undefined;
@@ -425,47 +437,25 @@ const MTSM_ENGINE = (() => {
     // Home advantage (not applied in cup matches)
     const homeAdv = (options && options.isCup) ? 0 : 5;
 
-    // --- Skill-aware goal calculation ---
-    // Home goals: home attack vs away defense, influenced by home midfield
-    // Away goals: away attack vs home defense, influenced by away midfield
+    // --- Skill-aware goal calculation using Poisson model ---
+    // Calibrated to real-world benchmarks: ~2.7 goals/match,
+    // ~45% home wins, ~27% draws, ~28% away wins
     const SCALE = 200;
 
-    // Midfield battle determines who creates more chances
+    // Midfield battle influences chance creation for both teams
     const midDiff = (home.midfield - away.midfield) / SCALE;
 
-    // Home scoring: attack vs opponent defense + midfield advantage
-    const homeAttackDiff = (home.attack - away.defense + homeAdv) / SCALE + midDiff * 0.3;
-    const homeScoreProb = Math.min(0.85, Math.max(0.15, 0.5 + homeAttackDiff));
+    // Attack vs defense matchup determines expected goals per team
+    const homeAttackEdge = (home.attack - away.defense + homeAdv) / SCALE + midDiff * 0.3;
+    const awayAttackEdge = (away.attack - home.defense) / SCALE - midDiff * 0.3;
 
-    // Away scoring: attack vs opponent defense - midfield disadvantage
-    const awayAttackDiff = (away.attack - home.defense) / SCALE - midDiff * 0.3;
-    const awayScoreProb = Math.min(0.85, Math.max(0.15, 0.5 + awayAttackDiff));
+    // Base expected goals per team (real-world calibrated), modified by strength
+    const homeExpected = Math.max(0.30, 1.50 + homeAttackEdge * 2.0);
+    const awayExpected = Math.max(0.20, 1.15 + awayAttackEdge * 2.0);
 
-    // Generate chances (Poisson-ish based on overall strength gap)
-    const overallDiff = (home.overall + homeAdv) - away.overall;
-    const totalGoals = Math.floor(Math.random() * 4) + Math.floor(Math.random() * 2);
-
-    let homeGoals = 0;
-    let awayGoals = 0;
-
-    // Each goal opportunity: decide who gets the chance, then whether it converts
-    for (let i = 0; i < totalGoals; i++) {
-      // Who gets the chance? Influenced by overall + midfield
-      const chanceProb = Math.min(0.80, Math.max(0.20, 0.5 + overallDiff / SCALE + midDiff * 0.2));
-      if (Math.random() < chanceProb) {
-        // Home chance — convert based on attack vs away defense
-        if (Math.random() < homeScoreProb) homeGoals++;
-      } else {
-        // Away chance — convert based on attack vs home defense
-        if (Math.random() < awayScoreProb) awayGoals++;
-      }
-    }
-
-    // Small chance of high-scoring game
-    if (Math.random() < 0.1) {
-      homeGoals += Math.floor(Math.random() * 3);
-      awayGoals += Math.floor(Math.random() * 2);
-    }
+    // Generate goals from Poisson distribution
+    let homeGoals = _poissonRandom(homeExpected);
+    let awayGoals = _poissonRandom(awayExpected);
 
     return { homeGoals, awayGoals };
   }
