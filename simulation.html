@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MTSM - AI Simulation Lab (DEV ONLY)</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a0a;
+    color: #00ff41;
+    font-family: 'VT323', monospace;
+    font-size: 18px;
+    padding: 20px;
+    min-height: 100vh;
+  }
+  h1 {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 16px;
+    color: #ff6600;
+    margin-bottom: 5px;
+  }
+  h2 {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 11px;
+    color: #ffcc00;
+    margin: 20px 0 10px;
+    border-bottom: 1px solid #333;
+    padding-bottom: 5px;
+  }
+  h3 {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 10px;
+    color: #00ccff;
+    margin: 15px 0 8px;
+  }
+  .dev-badge {
+    display: inline-block;
+    background: #ff0000;
+    color: #fff;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    padding: 3px 8px;
+    margin-bottom: 15px;
+    letter-spacing: 1px;
+  }
+  .config-panel {
+    background: #111;
+    border: 1px solid #333;
+    padding: 15px;
+    margin-bottom: 15px;
+    max-width: 700px;
+  }
+  .config-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+    gap: 10px;
+  }
+  .config-row label {
+    min-width: 200px;
+    color: #aaa;
+  }
+  input[type="number"], select {
+    background: #1a1a1a;
+    border: 1px solid #444;
+    color: #00ff41;
+    font-family: 'VT323', monospace;
+    font-size: 18px;
+    padding: 4px 8px;
+    width: 100px;
+  }
+  select { width: 180px; }
+  input[type="checkbox"] {
+    width: 18px; height: 18px;
+    accent-color: #00ff41;
+  }
+  button {
+    background: #003300;
+    border: 2px solid #00ff41;
+    color: #00ff41;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 12px;
+    padding: 10px 20px;
+    cursor: pointer;
+    margin: 5px;
+  }
+  button:hover { background: #005500; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.danger { border-color: #ff4444; color: #ff4444; }
+  button.danger:hover { background: #330000; }
+  #progress-bar {
+    width: 100%;
+    max-width: 700px;
+    height: 24px;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    margin: 10px 0;
+    display: none;
+  }
+  #progress-fill {
+    height: 100%;
+    background: #00ff41;
+    width: 0%;
+    transition: width 0.1s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #000;
+    font-size: 14px;
+    font-weight: bold;
+  }
+  #status {
+    color: #888;
+    margin: 10px 0;
+    min-height: 20px;
+  }
+  .report-section {
+    background: #111;
+    border: 1px solid #333;
+    padding: 15px;
+    margin-bottom: 15px;
+    overflow-x: auto;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-family: 'VT323', monospace;
+    font-size: 16px;
+  }
+  th {
+    background: #1a1a1a;
+    color: #ffcc00;
+    padding: 6px 10px;
+    text-align: left;
+    border-bottom: 2px solid #444;
+    white-space: nowrap;
+    font-weight: normal;
+  }
+  td {
+    padding: 4px 10px;
+    border-bottom: 1px solid #222;
+    white-space: nowrap;
+  }
+  tr:hover td { background: #1a2a1a; }
+  .val-good { color: #00ff41; }
+  .val-bad { color: #ff4444; }
+  .val-neutral { color: #aaa; }
+  .val-highlight { color: #ffcc00; }
+  .stories-list {
+    list-style: none;
+    padding: 0;
+  }
+  .stories-list li {
+    padding: 4px 0;
+    border-bottom: 1px dotted #333;
+  }
+  .stories-list .team { color: #00ccff; }
+  .stories-list .personality { color: #ffcc00; }
+  .export-bar {
+    margin: 15px 0;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .dist-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 5px;
+    margin-top: 5px;
+  }
+  .dist-grid label { min-width: 0; font-size: 14px; }
+  .dist-grid input { width: 60px; }
+  .tab-bar {
+    display: flex;
+    gap: 2px;
+    margin-bottom: 0;
+    flex-wrap: wrap;
+  }
+  .tab-btn {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-bottom: none;
+    color: #888;
+    font-family: 'VT323', monospace;
+    font-size: 16px;
+    padding: 6px 14px;
+    cursor: pointer;
+  }
+  .tab-btn.active {
+    background: #111;
+    color: #00ff41;
+    border-color: #333;
+    border-bottom: 1px solid #111;
+  }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+  .meta-info { color: #666; font-size: 14px; margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<h1>MTSM AI SIMULATION LAB</h1>
+<div class="dev-badge">DEVELOPER ONLY - NOT FOR PRODUCTION</div>
+
+<!-- Configuration -->
+<h2>SIMULATION CONFIG</h2>
+<div class="config-panel">
+  <div class="config-row">
+    <label>Seasons to simulate:</label>
+    <input type="number" id="cfg-seasons" value="100" min="1" max="1000">
+  </div>
+  <div class="config-row">
+    <label>Enable formations:</label>
+    <input type="checkbox" id="cfg-formations" checked>
+  </div>
+  <div class="config-row">
+    <label>Enable cups:</label>
+    <input type="checkbox" id="cfg-cups" checked>
+  </div>
+  <div class="config-row">
+    <label>PRNG seed (0=random):</label>
+    <input type="number" id="cfg-seed" value="0" min="0">
+  </div>
+  <div class="config-row">
+    <label>Distribution mode:</label>
+    <select id="cfg-dist-mode">
+      <option value="random">Random (engine default)</option>
+      <option value="equal">Equal (13/13/13/13/12)</option>
+      <option value="custom">Custom...</option>
+    </select>
+  </div>
+  <div id="custom-dist" style="display:none; margin-top: 8px;">
+    <div class="dist-grid">
+      <label>Pragmatist<br><input type="number" id="dist-pragmatist" value="13" min="0" max="64"></label>
+      <label>Tactician<br><input type="number" id="dist-tactician" value="13" min="0" max="64"></label>
+      <label>Moneybag<br><input type="number" id="dist-moneybag" value="13" min="0" max="64"></label>
+      <label>Developer<br><input type="number" id="dist-developer" value="13" min="0" max="64"></label>
+      <label>Gambler<br><input type="number" id="dist-gambler" value="12" min="0" max="64"></label>
+    </div>
+    <div id="dist-total" style="color:#888; margin-top:5px;">Total: 64/64</div>
+  </div>
+</div>
+
+<button id="btn-run" onclick="startSimulation()">RUN SIMULATION</button>
+<button id="btn-stop" onclick="stopSimulation()" class="danger" disabled>STOP</button>
+
+<div id="progress-bar"><div id="progress-fill"></div></div>
+<div id="status"></div>
+
+<!-- Results -->
+<div id="results" style="display:none;">
+  <h2>SIMULATION RESULTS</h2>
+
+  <div class="export-bar">
+    <button onclick="exportJSON()">EXPORT RAW JSON</button>
+    <button onclick="exportCSV()">EXPORT CSV SUMMARY</button>
+  </div>
+
+  <div class="tab-bar" id="tab-bar"></div>
+  <div id="tab-panels"></div>
+</div>
+
+<!-- Scripts: load game engine (headless) then simulation runner -->
+<script src="./data.js"></script>
+<script src="./engine.js"></script>
+<script src="./simulation.js"></script>
+
+<script>
+'use strict';
+
+let simResults = null;
+let aborted = false;
+
+// Distribution mode toggle
+document.getElementById('cfg-dist-mode').addEventListener('change', (e) => {
+  document.getElementById('custom-dist').style.display = e.target.value === 'custom' ? 'block' : 'none';
+});
+
+// Custom distribution total counter
+document.querySelectorAll('#custom-dist input').forEach(el => {
+  el.addEventListener('input', () => {
+    const total = ['pragmatist','tactician','moneybag','developer','gambler']
+      .reduce((s, k) => s + (parseInt(document.getElementById('dist-' + k).value) || 0), 0);
+    const el = document.getElementById('dist-total');
+    el.textContent = `Total: ${total}/64`;
+    el.style.color = total === 64 ? '#00ff41' : '#ff4444';
+  });
+});
+
+function getConfig() {
+  const distMode = document.getElementById('cfg-dist-mode').value;
+  let personalityDistribution = null;
+
+  if (distMode === 'equal') {
+    personalityDistribution = { pragmatist: 13, tactician: 13, moneybag: 13, developer: 13, gambler: 12 };
+  } else if (distMode === 'custom') {
+    personalityDistribution = {
+      pragmatist: parseInt(document.getElementById('dist-pragmatist').value) || 0,
+      tactician: parseInt(document.getElementById('dist-tactician').value) || 0,
+      moneybag: parseInt(document.getElementById('dist-moneybag').value) || 0,
+      developer: parseInt(document.getElementById('dist-developer').value) || 0,
+      gambler: parseInt(document.getElementById('dist-gambler').value) || 0
+    };
+    const total = Object.values(personalityDistribution).reduce((a, b) => a + b, 0);
+    if (total !== 64) {
+      alert('Custom distribution must total exactly 64 teams. Currently: ' + total);
+      return null;
+    }
+  }
+
+  return {
+    seasons: parseInt(document.getElementById('cfg-seasons').value) || 100,
+    enableFormations: document.getElementById('cfg-formations').checked,
+    enableCups: document.getElementById('cfg-cups').checked,
+    seed: parseInt(document.getElementById('cfg-seed').value) || 0,
+    personalityDistribution
+  };
+}
+
+async function startSimulation() {
+  const config = getConfig();
+  if (!config) return;
+
+  aborted = false;
+  simResults = null;
+  document.getElementById('btn-run').disabled = true;
+  document.getElementById('btn-stop').disabled = false;
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('progress-bar').style.display = 'block';
+  document.getElementById('progress-fill').style.width = '0%';
+  setStatus('Initialising simulation...');
+
+  config.onProgress = (season, total) => {
+    if (aborted) throw new Error('Simulation aborted by user');
+    const pct = Math.round(season / total * 100);
+    document.getElementById('progress-fill').style.width = pct + '%';
+    document.getElementById('progress-fill').textContent = pct + '%';
+    setStatus(`Season ${season}/${total} complete...`);
+  };
+
+  try {
+    simResults = await MTSM_SIM.runSimulation(config);
+    setStatus(`Simulation complete! ${config.seasons} seasons in ${simResults.reports.meta.simulationTime}`);
+    renderResults(simResults.reports);
+  } catch (e) {
+    if (e.message === 'Simulation aborted by user') {
+      setStatus('Simulation aborted.');
+    } else {
+      setStatus('ERROR: ' + e.message);
+      console.error(e);
+    }
+  }
+
+  document.getElementById('btn-run').disabled = false;
+  document.getElementById('btn-stop').disabled = true;
+}
+
+function stopSimulation() {
+  aborted = true;
+  document.getElementById('btn-stop').disabled = true;
+  setStatus('Stopping...');
+}
+
+function setStatus(msg) {
+  document.getElementById('status').textContent = msg;
+}
+
+// ===== Results Rendering =====
+
+function renderResults(reports) {
+  document.getElementById('results').style.display = 'block';
+
+  const tabs = [
+    { id: 'summary', label: 'Summary', render: () => renderSummary(reports) },
+    { id: 'personality', label: 'Personalities', render: () => renderPersonality(reports.personalityComparison) },
+    { id: 'financial', label: 'Finances', render: () => renderFinancial(reports.financialReport) },
+    { id: 'trophies', label: 'Trophies', render: () => renderTrophies(reports.trophyReport) },
+    { id: 'mobility', label: 'Mobility', render: () => renderMobility(reports.mobilityReport) },
+    { id: 'decisions', label: 'AI Decisions', render: () => renderDecisions(reports.decisionReport) },
+    { id: 'dynasties', label: 'Dynasties', render: () => renderDynasties(reports.dynasties) },
+    { id: 'stories', label: 'Stories', render: () => renderStories(reports.specialStories) },
+    { id: 'dominance', label: 'Div 1 Dominance', render: () => renderDominance(reports.divisionDominance) },
+    { id: 'match', label: 'Match Engine', render: () => renderMatchEngine(reports.matchEngineReport) }
+  ];
+
+  // Build tab bar
+  const tabBar = document.getElementById('tab-bar');
+  const panels = document.getElementById('tab-panels');
+  tabBar.innerHTML = '';
+  panels.innerHTML = '';
+
+  tabs.forEach((tab, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'tab-btn' + (i === 0 ? ' active' : '');
+    btn.textContent = tab.label;
+    btn.onclick = () => {
+      tabBar.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      panels.querySelectorAll('.tab-content').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('panel-' + tab.id).classList.add('active');
+    };
+    tabBar.appendChild(btn);
+
+    const panel = document.createElement('div');
+    panel.id = 'panel-' + tab.id;
+    panel.className = 'tab-content report-section' + (i === 0 ? ' active' : '');
+    panel.innerHTML = tab.render();
+    panels.appendChild(panel);
+  });
+}
+
+function renderSummary(reports) {
+  const s = reports.summary;
+  const m = reports.meta;
+  return `
+    <h3>SIMULATION OVERVIEW</h3>
+    <table>
+      <tr><td>Seasons simulated</td><td class="val-highlight">${s.seasonsSimulated}</td></tr>
+      <tr><td>Total matches played</td><td>${s.totalMatches.toLocaleString()}</td></tr>
+      <tr><td>Total goals scored</td><td>${s.totalGoals.toLocaleString()}</td></tr>
+      <tr><td>Avg goals per match</td><td>${s.avgGoalsPerMatch}</td></tr>
+      <tr><td>Home win %</td><td>${s.homeWinPct}%</td></tr>
+      <tr><td>Away win %</td><td>${s.awayWinPct}%</td></tr>
+      <tr><td>Draw %</td><td>${s.drawPct}%</td></tr>
+      <tr><td>Teams tracked</td><td>${s.teamsTracked}</td></tr>
+      <tr><td>Personalities tracked</td><td>${s.personalitiesTracked}</td></tr>
+      <tr><td>Simulation time</td><td class="val-neutral">${m.simulationTime}</td></tr>
+      <tr><td>Seed</td><td class="val-neutral">${m.config.seed || 'random'}</td></tr>
+    </table>
+    <div class="meta-info">Config: formations=${m.config.enableFormations}, cups=${m.config.enableCups}</div>
+  `;
+}
+
+function renderPersonality(report) {
+  if (!report || !report.rows.length) return '<p>No data</p>';
+  let html = '<h3>PERSONALITY COMPARISON (sorted by avg points)</h3><table><tr>';
+  html += '<th>Type</th><th>Avg Pts</th><th>Avg Pos</th><th>Win%</th><th>GD</th>';
+  html += '<th>Promo</th><th>Releg</th><th>Titles</th><th>Cups</th><th>Trophies</th>';
+  html += '<th>Avg Bal</th><th>Avg OVR</th><th>Avg Age</th>';
+  html += '<th>Div1%</th><th>Div2%</th><th>Div3%</th><th>Div4%</th>';
+  html += '</tr>';
+  for (const r of report.rows) {
+    html += `<tr>
+      <td>${r.icon} ${r.label}</td>
+      <td class="val-highlight">${r.avgPoints}</td>
+      <td>${r.avgPosition}</td>
+      <td class="val-good">${r.winRate}%</td>
+      <td class="${r.avgGD >= 0 ? 'val-good' : 'val-bad'}">${r.avgGD > 0 ? '+' : ''}${r.avgGD}</td>
+      <td class="val-good">${r.promotions}</td>
+      <td class="val-bad">${r.relegations}</td>
+      <td class="val-highlight">${r.div1Titles}</td>
+      <td>${r.cupWins + r.nationalCupWins + r.leagueTrophyWins}</td>
+      <td class="val-highlight">${r.totalTrophies}</td>
+      <td>${formatMoney(r.avgBalance)}</td>
+      <td>${r.avgSquadOvr}</td>
+      <td>${r.avgSquadAge}</td>
+      <td>${r.divisionDistribution.div1Pct}%</td>
+      <td>${r.divisionDistribution.div2Pct}%</td>
+      <td>${r.divisionDistribution.div3Pct}%</td>
+      <td>${r.divisionDistribution.div4Pct}%</td>
+    </tr>`;
+  }
+  html += '</table>';
+  return html;
+}
+
+function renderFinancial(report) {
+  if (!report || !report.rows.length) return '<p>No data</p>';
+  let html = '<h3>FINANCIAL HEALTH BY PERSONALITY</h3><table>';
+  html += '<tr><th>Personality</th><th>Avg Balance</th><th>Max Balance</th><th>Min Balance</th><th>Negative %</th></tr>';
+  for (const r of report.rows) {
+    html += `<tr>
+      <td>${r.personality}</td>
+      <td class="${r.avgBalance >= 0 ? 'val-good' : 'val-bad'}">${formatMoney(r.avgBalance)}</td>
+      <td class="val-good">${formatMoney(r.maxBalance)}</td>
+      <td class="val-bad">${formatMoney(r.minBalance)}</td>
+      <td class="${r.negativeBalancePct > 30 ? 'val-bad' : 'val-neutral'}">${r.negativeBalancePct}%</td>
+    </tr>`;
+  }
+  html += '</table>';
+  return html;
+}
+
+function renderTrophies(report) {
+  if (!report) return '<p>No data</p>';
+  let html = '<h3>TROPHIES BY PERSONALITY</h3><table><tr><th>Personality</th>';
+  const trophyTypes = new Set();
+  for (const data of Object.values(report.byPersonality)) {
+    for (const k of Object.keys(data)) trophyTypes.add(k);
+  }
+  const types = [...trophyTypes].sort();
+  for (const t of types) html += `<th>${t}</th>`;
+  html += '<th>TOTAL</th></tr>';
+  for (const [p, data] of Object.entries(report.byPersonality)) {
+    html += `<tr><td>${p}</td>`;
+    let total = 0;
+    for (const t of types) { const v = data[t] || 0; total += v; html += `<td>${v}</td>`; }
+    html += `<td class="val-highlight">${total}</td></tr>`;
+  }
+  html += '</table>';
+
+  html += '<h3>MOST DECORATED TEAMS (Top 15)</h3><table><tr><th>#</th><th>Team</th><th>Personality</th><th>Trophies</th></tr>';
+  report.topTeams.forEach((t, i) => {
+    html += `<tr><td>${i + 1}</td><td class="val-highlight">${t.team}</td><td>${t.personality}</td><td>${t.trophies}</td></tr>`;
+  });
+  html += '</table>';
+  return html;
+}
+
+function renderMobility(report) {
+  if (!report || !report.rows.length) return '<p>No data</p>';
+  let html = '<h3>DIVISION MOBILITY & BOUNCE RATES</h3><table>';
+  html += '<tr><th>Personality</th><th>Promotions</th><th>Relegations</th><th>Promo Bounce%</th><th>Releg Bounce%</th></tr>';
+  for (const r of report.rows) {
+    html += `<tr>
+      <td>${r.personality}</td>
+      <td class="val-good">${r.promotions}</td>
+      <td class="val-bad">${r.relegations}</td>
+      <td class="${r.promoBounceRate > 40 ? 'val-bad' : 'val-neutral'}">${r.promoBounceRate}%</td>
+      <td class="${r.relegBounceRate > 40 ? 'val-good' : 'val-neutral'}">${r.relegBounceRate}%</td>
+    </tr>`;
+  }
+  html += '</table>';
+  html += '<div class="meta-info">Promo bounce = promoted then immediately relegated next season. Releg bounce = relegated then immediately promoted back.</div>';
+  return html;
+}
+
+function renderDecisions(report) {
+  if (!report || !report.rows.length) return '<p>No data</p>';
+  let html = '<h3>AI DECISION-MAKING (per team averages)</h3><table>';
+  html += '<tr><th>Personality</th><th>Teams</th><th>Avg Buys</th><th>Avg Sells</th>';
+  html += '<th>Emergency Sells</th><th>Panic Buys</th><th>Staff Upg</th><th>Ground Upg</th><th>Formation Chg</th></tr>';
+  for (const r of report.rows) {
+    html += `<tr>
+      <td>${r.personality}</td>
+      <td>${r.teams}</td>
+      <td>${r.avgBuys}</td>
+      <td>${r.avgSells}</td>
+      <td class="${r.avgEmergencySells > 5 ? 'val-bad' : ''}">${r.avgEmergencySells}</td>
+      <td class="${r.avgPanicBuys > 3 ? 'val-bad' : ''}">${r.avgPanicBuys}</td>
+      <td>${r.avgStaffUpgrades}</td>
+      <td>${r.avgGroundUpgrades}</td>
+      <td>${r.avgFormationChanges}</td>
+    </tr>`;
+  }
+  html += '</table>';
+  return html;
+}
+
+function renderDynasties(report) {
+  if (!report || !report.dynasties.length) return '<p>No dynasties found (3+ consecutive Div 1 seasons required)</p>';
+  let html = '<h3>TOP DYNASTIES</h3><table>';
+  html += '<tr><th>#</th><th>Team</th><th>Personality</th><th>Consecutive Div 1</th><th>From Season</th><th>Titles</th></tr>';
+  report.dynasties.forEach((d, i) => {
+    html += `<tr>
+      <td>${i + 1}</td>
+      <td class="val-highlight">${d.team}</td>
+      <td>${d.personality}</td>
+      <td class="val-good">${d.consecutiveDiv1Seasons}</td>
+      <td>${d.startSeason}</td>
+      <td class="val-highlight">${d.titles}</td>
+    </tr>`;
+  });
+  html += '</table>';
+  return html;
+}
+
+function renderStories(stories) {
+  if (!stories) return '<p>No data</p>';
+  let html = '';
+
+  html += '<h3>CINDERELLA STORIES (Div 4 to Div 1)</h3>';
+  if (stories.cinderellas.length === 0) {
+    html += '<p class="val-neutral">No team climbed from Division 4 to Division 1.</p>';
+  } else {
+    html += '<ul class="stories-list">';
+    stories.cinderellas.slice(0, 15).forEach(c => {
+      html += `<li><span class="team">${c.team}</span> (<span class="personality">${c.personality}</span>) climbed from Div 4 (season ${c.startSeason}) to Div 1 (season ${c.arrivedDiv1}) in <strong>${c.seasonsToClimb} seasons</strong></li>`;
+    });
+    html += '</ul>';
+  }
+
+  html += '<h3>COLLAPSES (Div 1 to Div 4)</h3>';
+  if (stories.collapses.length === 0) {
+    html += '<p class="val-neutral">No team fell from Division 1 to Division 4.</p>';
+  } else {
+    html += '<ul class="stories-list">';
+    stories.collapses.slice(0, 15).forEach(c => {
+      html += `<li><span class="team">${c.team}</span> (<span class="personality">${c.personality}</span>) fell from Div 1 (season ${c.startSeason}) to Div 4 (season ${c.arrivedDiv4}) in <strong>${c.seasonsToFall} seasons</strong></li>`;
+    });
+    html += '</ul>';
+  }
+
+  return html;
+}
+
+function renderDominance(report) {
+  if (!report || !report.data.length) return '<p>No data</p>';
+  const personalities = ['pragmatist', 'tactician', 'moneybag', 'developer', 'gambler'];
+  let html = '<h3>DIVISION 1 COMPOSITION BY PERSONALITY (per season)</h3>';
+  html += '<table><tr><th>Season</th>';
+  for (const p of personalities) html += `<th>${p}</th>`;
+  html += '</tr>';
+
+  // Show every 5th season to keep table manageable
+  const step = Math.max(1, Math.floor(report.data.length / 25));
+  for (let i = 0; i < report.data.length; i += step) {
+    const d = report.data[i];
+    html += `<tr><td>${d.season}</td>`;
+    for (const p of personalities) {
+      const count = d.div1Personalities[p] || 0;
+      const cls = count >= 5 ? 'val-highlight' : count >= 3 ? 'val-good' : count === 0 ? 'val-bad' : '';
+      html += `<td class="${cls}">${count}</td>`;
+    }
+    html += '</tr>';
+  }
+  // Always show last season
+  const last = report.data[report.data.length - 1];
+  if (report.data.length % step !== 1) {
+    html += `<tr><td>${last.season}</td>`;
+    for (const p of personalities) {
+      const count = last.div1Personalities[p] || 0;
+      html += `<td>${count}</td>`;
+    }
+    html += '</tr>';
+  }
+  html += '</table>';
+  return html;
+}
+
+function renderMatchEngine(report) {
+  if (!report) return '<p>No data</p>';
+  return `
+    <h3>MATCH ENGINE BALANCE</h3>
+    <table>
+      <tr><td>Total matches</td><td>${report.totalMatches.toLocaleString()}</td></tr>
+      <tr><td>Total goals</td><td>${report.totalGoals.toLocaleString()}</td></tr>
+      <tr><td>Avg goals per match</td><td>${report.avgGoalsPerMatch}</td></tr>
+      <tr><td>Home wins</td><td>${report.homeWins.toLocaleString()} (${report.homeWinPct}%)</td></tr>
+      <tr><td>Away wins</td><td>${report.awayWins.toLocaleString()} (${report.awayWinPct}%)</td></tr>
+      <tr><td>Draws</td><td>${report.draws.toLocaleString()} (${report.drawPct}%)</td></tr>
+    </table>
+    <div class="meta-info">Expected: Home ~45%, Away ~28%, Draw ~27% (based on real football averages)</div>
+  `;
+}
+
+// ===== Utilities =====
+
+function formatMoney(val) {
+  if (val >= 0) return '\u00A3' + Math.round(val).toLocaleString();
+  return '-\u00A3' + Math.round(Math.abs(val)).toLocaleString();
+}
+
+// ===== Export Functions =====
+
+function exportJSON() {
+  if (!simResults) return;
+  const blob = new Blob([JSON.stringify(simResults.reports, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `mtsm-simulation-${Date.now()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportCSV() {
+  if (!simResults || !simResults.reports.personalityComparison) return;
+  const rows = simResults.reports.personalityComparison.rows;
+  const headers = Object.keys(rows[0]).filter(k => k !== 'divisionDistribution' && k !== 'bestFinish' && k !== 'worstFinish');
+  let csv = headers.join(',') + '\n';
+  for (const r of rows) {
+    csv += headers.map(h => {
+      const v = r[h];
+      return typeof v === 'string' ? `"${v}"` : v;
+    }).join(',') + '\n';
+  }
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `mtsm-personality-comparison-${Date.now()}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+</script>
+
+</body>
+</html>
