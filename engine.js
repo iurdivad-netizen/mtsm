@@ -2570,9 +2570,9 @@ const MTSM_ENGINE = (() => {
       seasonSells: aiData.seasonSells,
       detail: details.detail || null  // free-form context string
     });
-    // Cap log to prevent unbounded growth (keep last 2000 entries)
-    if (state.aiManagerLog.length > 2000) {
-      state.aiManagerLog = state.aiManagerLog.slice(-1500);
+    // Cap log to prevent unbounded growth (keep last 5000 entries)
+    if (state.aiManagerLog.length > 5000) {
+      state.aiManagerLog = state.aiManagerLog.slice(-4000);
     }
   }
 
@@ -2916,8 +2916,8 @@ const MTSM_ENGINE = (() => {
       const newQuality = staff.quality + 1;
       const newWage = MTSM_DATA.STAFF_COSTS[newQuality];
       const weeklyIncrease = newWage - staff.wage;
-      // Only upgrade if we can afford the increased wages for ~10 weeks
-      if (team.balance > weeklyIncrease * 10 && team.balance > 10000) {
+      // Only upgrade if we can afford the increased wages for ~4 weeks
+      if (team.balance > weeklyIncrease * 4 && team.balance > 2000) {
         team.staff[role] = { quality: newQuality, wage: newWage };
         pushNews({
           type: 'AI_STAFF',
