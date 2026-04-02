@@ -15,7 +15,7 @@ const MTSM_SIM = (() => {
     enableFormations: true,
     enableCups: true,
     // Flush AI log every N seasons to prevent memory bloat
-    logFlushInterval: 5,
+    logFlushInterval: 1,
     // Progress callback: called each season with (seasonNumber, totalSeasons)
     onProgress: null,
     // Seed for reproducibility (0 = use Math.random default)
