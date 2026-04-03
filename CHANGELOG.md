@@ -2,6 +2,20 @@
 
 All notable changes to MULTI PSM are documented in this file.
 
+## v0.14.0 — 2026-04-02
+
+### Fixed
+- AI managers never upgrading staff (log overflow and financial gates)
+
+## v0.13.0 — 2026-04-01
+
+### Added
+- AI-only simulation lab for studying AI personality behaviour (`simulation.html`)
+
+### Fixed
+- Match simulation now produces realistic football statistics
+- AI manager log access uses direct state access instead of broken getter
+
 ## v0.12.0 — 2026-03-31
 
 ### Added
@@ -9,6 +23,7 @@ All notable changes to MULTI PSM are documented in this file.
 - Handling skill for GK (replaces Shooting for goalkeepers)
 - AI manager training decisions and season-end summaries in activity log
 - AI LOG button now always visible regardless of aiManagers option
+- OVR recalculation on save load for backward compatibility
 
 ### Changed
 - Removed redundant SHARE and PASTE buttons from title screen

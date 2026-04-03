@@ -1,6 +1,6 @@
 # MULTI PSM
 
-> Version 0.12.0 | Last updated: 2026-03-31
+> Version 0.14.0 | Last updated: 2026-04-02
 
 A retro-styled, browser-based football management simulation game inspired by classic 1991 management games. Manage your club across 4 divisions, compete in cup competitions, develop youth talent, and climb to the top.
 
@@ -22,9 +22,10 @@ Save/load your progress at any time via JSON file export, save slots, or auto-sa
 - **4-Division League System** -- 64 teams (16 per division) with full round-robin seasons (30 matches)
 - **Multiplayer** -- Up to 4 human managers in a shared game, each starting in Division 4
 - **Promotion & Relegation** -- Top 2 promoted, bottom 2 relegated each season
-- **Match Simulation** -- Position-weighted OVR, skill-aware engine with form & momentum bonuses
+- **Match Simulation** -- Position-weighted OVR, skill-aware engine with realistic football statistics
 - **Save/Load** -- JSON file export, multi-slot save system, and auto-save after each match week
 - **PWA Support** -- Install on your device and play offline
+- **AI Simulation Lab** -- Standalone tool for studying AI personality behaviour without playing
 
 ### AI Managers
 
@@ -150,14 +151,16 @@ When enabled, three tournament types run alongside the league:
 ## Project Structure
 
 ```
-index.html      -- Single-page app shell
-app.js          -- Bootstrap and test hooks
-data.js         -- Game data, constants, team/player generation
-engine.js       -- Core simulation logic and game state
-ui.js           -- User interface rendering and event handling
-style.css       -- Retro ZX Spectrum styling
-sw.js           -- Service worker for offline PWA support
-manifest.json   -- PWA manifest
+index.html       -- Single-page app shell
+app.js           -- Bootstrap and test hooks
+data.js          -- Game data, constants, team/player generation
+engine.js        -- Core simulation logic and game state
+ui.js            -- User interface rendering and event handling
+style.css        -- Retro ZX Spectrum styling
+sw.js            -- Service worker for offline PWA support
+manifest.json    -- PWA manifest
+simulation.html  -- AI simulation lab (standalone)
+simulation.js    -- AI simulation lab logic
 ```
 
 ## Browser Requirements
