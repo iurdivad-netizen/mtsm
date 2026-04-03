@@ -153,7 +153,7 @@ const MTSM_UI = (() => {
             <button class="btn btn-small" onclick="MTSM_UI._toggleTitlePanel('changelog')">📜 CHANGELOG</button>
           </div>
           <div class="text-muted" style="font-size:14px;">Up to 4 players • 64 teams • 4 divisions</div>
-          <div class="title-version">v0.12.0 • Last updated 2026-03-31</div>
+          <div class="title-version">v0.14.0 • Last updated 2026-04-02</div>
         </div>
         <div id="title-info-panel"></div>
         <input type="file" id="load-file-input" accept=".json" style="display:none;" onchange="MTSM_UI._handleLoadFile(event)">
@@ -185,8 +185,9 @@ const MTSM_UI = (() => {
         <li><b>Multiplayer</b> — Up to 4 human managers in a shared game</li>
         <li><b>AI Managers</b> — 5 personality types with season-phase awareness and activity logging</li>
         <li><b>Promotion &amp; Relegation</b> — Top 2 up, bottom 2 down each season</li>
-        <li><b>Match Engine</b> — Position-weighted OVR, skill-aware simulation with form &amp; momentum</li>
+        <li><b>Match Engine</b> — Position-weighted OVR, skill-aware simulation with realistic stats</li>
         <li><b>Save/Load</b> — JSON export, multi-slot saves, auto-save; works offline as a PWA</li>
+        <li><b>AI Simulation Lab</b> — Standalone tool for studying AI personality behaviour</li>
       </ul>
 
       <h3>Squad &amp; Training</h3>
@@ -259,12 +260,24 @@ const MTSM_UI = (() => {
     return `<div class="title-info-box">
       <h2>Changelog</h2>
 
+      <h3>v0.14.0 — 2026-04-02</h3>
+      <ul>
+        <li><b>Fixed:</b> AI managers never upgrading staff (log overflow &amp; financial gates)</li>
+      </ul>
+
+      <h3>v0.13.0 — 2026-04-01</h3>
+      <ul>
+        <li>AI-only simulation lab (<code>simulation.html</code>)</li>
+        <li><b>Fixed:</b> Realistic football match statistics, AI log access</li>
+      </ul>
+
       <h3>v0.12.0 — 2026-03-31</h3>
       <ul>
         <li>Position-weighted OVR and skill-aware match engine</li>
         <li>Handling skill for GK (replaces Shooting)</li>
         <li>AI manager training decisions &amp; season-end summaries in log</li>
         <li>AI LOG button always visible</li>
+        <li>OVR recalculation on save load for backward compatibility</li>
       </ul>
 
       <h3>v0.11.0 — 2026-03-29</h3>
