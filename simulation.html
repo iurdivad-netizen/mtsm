@@ -494,12 +494,14 @@ function renderEconomy(report) {
     <h3>REBALANCING TOTALS (${report.seasons} seasons)</h3>
     <table>
       <tr><td>Luxury tax collected</td><td class="val-highlight">${formatMoney(t.taxCollected)}</td><td>avg ${formatMoney(a.taxPerSeason)}/season</td></tr>
+      <tr><td>Tax destroyed (sink + cap)</td><td class="val-bad">${formatMoney(t.taxDestroyed)}</td><td>avg ${formatMoney(a.taxDestroyedPerSeason)}/season</td></tr>
       <tr><td>Solidarity paid to lower divs</td><td class="val-good">${formatMoney(t.solidarityPaid)}</td><td>avg ${formatMoney(a.solidarityPerSeason)}/season</td></tr>
       <tr><td>Parachute payments</td><td class="val-good">${formatMoney(t.parachutePaid)}</td><td>avg ${formatMoney(a.parachutePerSeason)}/season</td></tr>
       <tr><td>League prize money</td><td class="val-neutral">${formatMoney(t.leaguePrizePaid)}</td><td>avg ${formatMoney(a.leaguePrizePerSeason)}/season</td></tr>
       <tr><td>Tax-paying clubs</td><td>${t.taxPayerCount}</td><td>avg ${a.taxPayersPerSeason}/season</td></tr>
       <tr><td>Parachute recipients</td><td>${t.parachutePaidCount}</td><td>avg ${a.parachutesPaidPerSeason}/season</td></tr>
     </table>
+    <div class="meta-info">Destroyed = money that left the game entirely (sink rate + solidarity cap) instead of being recycled into lower divisions. Without this the tax pool compounds each season.</div>
   `;
 
   html += `
@@ -531,7 +533,7 @@ function renderEconomy(report) {
   html += `
     <h3>PER-SEASON TIMELINE</h3>
     <table>
-      <tr><th>Season</th><th>Tax collected</th><th>Solidarity</th><th>Parachute</th>
+      <tr><th>Season</th><th>Tax collected</th><th>Destroyed</th><th>Solidarity</th><th>Parachute</th>
           <th>League prize</th><th>Div1/Div4 ratio</th>
           <th>&#8805;\u00a31M</th><th>&#8805;\u00a35M</th><th>&#8805;\u00a310M</th></tr>
   `;
@@ -540,6 +542,7 @@ function renderEconomy(report) {
     html += `<tr>
       <td>${r.season}</td>
       <td>${formatMoney(r.taxCollected)}</td>
+      <td>${formatMoney(r.taxDestroyed)}</td>
       <td>${formatMoney(r.solidarityPaid)}</td>
       <td>${formatMoney(r.parachutePaid)}</td>
       <td>${formatMoney(r.leaguePrizePaid)}</td>

@@ -1385,6 +1385,7 @@ const MTSM_ENGINE = (() => {
       parachutePaidCount: 0,
       leaguePrizePaid: 0,
       taxCollected: 0,
+      taxDestroyed: 0,
       taxPayerCount: 0,
       solidarityPaid: 0,
       parachuteQueued: 0,
@@ -1507,11 +1508,14 @@ const MTSM_ENGINE = (() => {
       }
     }
 
-    // Progressive luxury tax: collect from wealthy clubs, redistribute to
-    // lower divisions weighted toward the bottom tier. This caps runaway
-    // wealth accumulation while keeping the lower divisions competitive.
+    // Progressive luxury tax: collect from wealthy clubs, redistribute a
+    // capped portion to lower divisions, and destroy the rest so money
+    // actually leaves the economy. Without the sink + cap the tax pool
+    // compounds every season because gate/prize income are pure creation.
     const taxConfig = MTSM_DATA.ECONOMY.LUXURY_TAX;
     const shareConfig = MTSM_DATA.ECONOMY.REDISTRIBUTION_SHARE;
+    const sinkRate = MTSM_DATA.ECONOMY.TAX_SINK_RATE ?? 0;
+    const solidarityCap = MTSM_DATA.ECONOMY.SOLIDARITY_CAP ?? Infinity;
     let taxPool = 0;
     for (let d = 0; d < 4; d++) {
       const tiers = taxConfig[d];
@@ -1534,12 +1538,18 @@ const MTSM_ENGINE = (() => {
     }
     economy.taxCollected = taxPool;
 
-    if (taxPool > 0) {
+    // Apply sink (money destroyed as "league operating costs") and cap.
+    const afterSink = Math.floor(taxPool * (1 - sinkRate));
+    const redistributable = Math.min(afterSink, solidarityCap);
+    const destroyed = taxPool - redistributable;
+    economy.taxDestroyed = destroyed;
+
+    if (redistributable > 0) {
       for (const dStr of Object.keys(shareConfig)) {
         const d = parseInt(dStr, 10);
         const teams = state.divisions[d].teams;
         if (!teams.length) continue;
-        const divShare = taxPool * shareConfig[d];
+        const divShare = redistributable * shareConfig[d];
         const perClub = Math.floor(divShare / teams.length);
         if (perClub <= 0) continue;
         for (const team of teams) {
@@ -1550,7 +1560,12 @@ const MTSM_ENGINE = (() => {
       }
       pushNews({
         type: 'FINANCE',
-        text: `Solidarity scheme redistributed £${taxPool.toLocaleString()} from wealthy clubs to lower divisions.`
+        text: `Solidarity scheme redistributed £${redistributable.toLocaleString()} to lower divisions; £${destroyed.toLocaleString()} retained as league operating costs.`
+      });
+    } else if (taxPool > 0) {
+      pushNews({
+        type: 'FINANCE',
+        text: `£${taxPool.toLocaleString()} collected in luxury tax retained as league operating costs.`
       });
     }
 

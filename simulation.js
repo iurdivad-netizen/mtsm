@@ -210,6 +210,7 @@ const MTSM_SIM = (() => {
     collector.economyHistory.push({
       season,
       taxCollected: result.economy.taxCollected,
+      taxDestroyed: result.economy.taxDestroyed || 0,
       taxPayerCount: result.economy.taxPayerCount,
       solidarityPaid: result.economy.solidarityPaid,
       parachutePaid: result.economy.parachutePaid,
@@ -484,9 +485,10 @@ const MTSM_SIM = (() => {
     }
 
     let totalTax = 0, totalSolidarity = 0, totalParachute = 0, totalPrize = 0;
-    let totalTaxPayers = 0, totalParachutePaid = 0;
+    let totalTaxPayers = 0, totalParachutePaid = 0, totalDestroyed = 0;
     for (const h of history) {
       totalTax += h.taxCollected || 0;
+      totalDestroyed += h.taxDestroyed || 0;
       totalSolidarity += h.solidarityPaid || 0;
       totalParachute += h.parachutePaid || 0;
       totalPrize += h.leaguePrizePaid || 0;
@@ -532,6 +534,7 @@ const MTSM_SIM = (() => {
     const timeline = history.map(h => ({
       season: h.season,
       taxCollected: h.taxCollected,
+      taxDestroyed: h.taxDestroyed || 0,
       solidarityPaid: h.solidarityPaid,
       parachutePaid: h.parachutePaid,
       leaguePrizePaid: h.leaguePrizePaid,
@@ -554,6 +557,7 @@ const MTSM_SIM = (() => {
       seasons,
       totals: {
         taxCollected: totalTax,
+        taxDestroyed: totalDestroyed,
         solidarityPaid: totalSolidarity,
         parachutePaid: totalParachute,
         leaguePrizePaid: totalPrize,
@@ -562,6 +566,7 @@ const MTSM_SIM = (() => {
       },
       averages: {
         taxPerSeason: Math.round(totalTax / seasons),
+        taxDestroyedPerSeason: Math.round(totalDestroyed / seasons),
         solidarityPerSeason: Math.round(totalSolidarity / seasons),
         parachutePerSeason: Math.round(totalParachute / seasons),
         leaguePrizePerSeason: Math.round(totalPrize / seasons),
