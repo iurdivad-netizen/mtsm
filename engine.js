@@ -1380,11 +1380,23 @@ const MTSM_ENGINE = (() => {
     // Pay out parachute payments queued last season (one season of relief
     // for clubs that were relegated). Teams may have moved divisions, so
     // look them up by name.
+    const economy = {
+      parachutePaid: 0,
+      parachutePaidCount: 0,
+      leaguePrizePaid: 0,
+      taxCollected: 0,
+      taxPayerCount: 0,
+      solidarityPaid: 0,
+      parachuteQueued: 0,
+      balancesByDivision: []
+    };
     if (state.parachutePending && state.parachutePending.length > 0) {
       for (const p of state.parachutePending) {
         const team = findTeamByName(p.teamName);
         if (!team) continue;
         team.balance += p.amount;
+        economy.parachutePaid += p.amount;
+        economy.parachutePaidCount++;
         recordFinance(team, 'income', p.amount, 'Parachute payment');
         if (team.isHuman) {
           pushNews({
@@ -1423,6 +1435,7 @@ const MTSM_ENGINE = (() => {
           const prize = prizeTable[pos];
           if (prize > 0) {
             sorted[pos].balance += prize;
+            economy.leaguePrizePaid += prize;
             recordFinance(sorted[pos], 'income', prize, `League prize money (${pos + 1}${_ordinalSuffix(pos + 1)} in Div ${d + 1})`);
           }
         }
@@ -1490,6 +1503,7 @@ const MTSM_ENGINE = (() => {
           division: releg.toDiv,
           amount
         });
+        economy.parachuteQueued++;
       }
     }
 
@@ -1507,6 +1521,7 @@ const MTSM_ENGINE = (() => {
         if (owed > 0) {
           team.balance -= owed;
           taxPool += owed;
+          economy.taxPayerCount++;
           recordFinance(team, 'expense', owed, 'Luxury tax');
           if (team.isHuman) {
             pushNews({
@@ -1517,6 +1532,7 @@ const MTSM_ENGINE = (() => {
         }
       }
     }
+    economy.taxCollected = taxPool;
 
     if (taxPool > 0) {
       for (const dStr of Object.keys(shareConfig)) {
@@ -1528,12 +1544,39 @@ const MTSM_ENGINE = (() => {
         if (perClub <= 0) continue;
         for (const team of teams) {
           team.balance += perClub;
+          economy.solidarityPaid += perClub;
           recordFinance(team, 'income', perClub, 'Solidarity payment');
         }
       }
       pushNews({
         type: 'FINANCE',
         text: `Solidarity scheme redistributed £${taxPool.toLocaleString()} from wealthy clubs to lower divisions.`
+      });
+    }
+
+    // Post-tax balance snapshot per division (useful for tracking wealth
+    // inequality trends across many simulated seasons).
+    for (let d = 0; d < 4; d++) {
+      const balances = state.divisions[d].teams.map(t => t.balance).sort((a, b) => a - b);
+      const count = balances.length;
+      const total = balances.reduce((s, b) => s + b, 0);
+      const median = count > 0
+        ? (count % 2 === 0
+          ? (balances[count / 2 - 1] + balances[count / 2]) / 2
+          : balances[(count - 1) / 2])
+        : 0;
+      economy.balancesByDivision.push({
+        division: d,
+        count,
+        total,
+        avg: count > 0 ? Math.round(total / count) : 0,
+        median: Math.round(median),
+        max: count > 0 ? balances[count - 1] : 0,
+        min: count > 0 ? balances[0] : 0,
+        // Count of clubs in this division above common "millionaire" thresholds
+        over1M: balances.filter(b => b >= 1_000_000).length,
+        over5M: balances.filter(b => b >= 5_000_000).length,
+        over10M: balances.filter(b => b >= 10_000_000).length
       });
     }
 
@@ -1752,7 +1795,7 @@ const MTSM_ENGINE = (() => {
       }
     }
 
-    return { promotions, relegations, champion };
+    return { promotions, relegations, champion, economy };
   }
 
   function moveTeamBetweenDivisions(team, fromDiv, toDiv) {

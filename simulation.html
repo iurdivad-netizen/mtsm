@@ -376,6 +376,7 @@ function renderResults(reports) {
     { id: 'summary', label: 'Summary', render: () => renderSummary(reports) },
     { id: 'personality', label: 'Personalities', render: () => renderPersonality(reports.personalityComparison) },
     { id: 'financial', label: 'Finances', render: () => renderFinancial(reports.financialReport) },
+    { id: 'economy', label: 'Economy Balance', render: () => renderEconomy(reports.economyReport) },
     { id: 'trophies', label: 'Trophies', render: () => renderTrophies(reports.trophyReport) },
     { id: 'mobility', label: 'Mobility', render: () => renderMobility(reports.mobilityReport) },
     { id: 'decisions', label: 'AI Decisions', render: () => renderDecisions(reports.decisionReport) },
@@ -480,6 +481,79 @@ function renderFinancial(report) {
     </tr>`;
   }
   html += '</table>';
+  return html;
+}
+
+function renderEconomy(report) {
+  if (!report || report.empty) return '<p>No economy data collected (simulation ran zero seasons).</p>';
+
+  const t = report.totals;
+  const a = report.averages;
+
+  let html = `
+    <h3>REBALANCING TOTALS (${report.seasons} seasons)</h3>
+    <table>
+      <tr><td>Luxury tax collected</td><td class="val-highlight">${formatMoney(t.taxCollected)}</td><td>avg ${formatMoney(a.taxPerSeason)}/season</td></tr>
+      <tr><td>Solidarity paid to lower divs</td><td class="val-good">${formatMoney(t.solidarityPaid)}</td><td>avg ${formatMoney(a.solidarityPerSeason)}/season</td></tr>
+      <tr><td>Parachute payments</td><td class="val-good">${formatMoney(t.parachutePaid)}</td><td>avg ${formatMoney(a.parachutePerSeason)}/season</td></tr>
+      <tr><td>League prize money</td><td class="val-neutral">${formatMoney(t.leaguePrizePaid)}</td><td>avg ${formatMoney(a.leaguePrizePerSeason)}/season</td></tr>
+      <tr><td>Tax-paying clubs</td><td>${t.taxPayerCount}</td><td>avg ${a.taxPayersPerSeason}/season</td></tr>
+      <tr><td>Parachute recipients</td><td>${t.parachutePaidCount}</td><td>avg ${a.parachutesPaidPerSeason}/season</td></tr>
+    </table>
+  `;
+
+  html += `
+    <h3>WEALTH BY DIVISION (averaged across ${report.seasons} seasons)</h3>
+    <table>
+      <tr><th>Division</th><th>Avg balance</th><th>Median</th><th>Peak ever</th>
+          <th>Final avg</th><th>Avg &#8805;\u00a31M</th><th>Avg &#8805;\u00a35M</th><th>Avg &#8805;\u00a310M</th></tr>
+  `;
+  for (const d of report.divisionSummary) {
+    if (!d.seasons) continue;
+    html += `<tr>
+      <td>Division ${d.division}</td>
+      <td>${formatMoney(d.avgBalance)}</td>
+      <td>${formatMoney(d.medianBalance)}</td>
+      <td class="val-highlight">${formatMoney(d.maxBalanceEver)}</td>
+      <td>${formatMoney(d.finalAvgBalance)}</td>
+      <td>${d.avgMillionaires}</td>
+      <td class="${d.avgMultiMillionaires > 3 ? 'val-bad' : 'val-neutral'}">${d.avgMultiMillionaires}</td>
+      <td class="${d.avgMegaRich > 0 ? 'val-bad' : 'val-good'}">${d.avgMegaRich}</td>
+    </tr>`;
+  }
+  html += '</table>';
+  html += '<div class="meta-info">"Avg &#8805;\u00a31M" = average number of clubs in that division holding at least \u00a31M at season end. High counts of &#8805;\u00a310M clubs indicate the rebalancing is not keeping up.</div>';
+
+  // Timeline: show every season up to 30, then every 5th season afterwards
+  // to keep the table readable when runs are long.
+  const tl = report.timeline;
+  const step = tl.length > 30 ? 5 : 1;
+  html += `
+    <h3>PER-SEASON TIMELINE</h3>
+    <table>
+      <tr><th>Season</th><th>Tax collected</th><th>Solidarity</th><th>Parachute</th>
+          <th>League prize</th><th>Div1/Div4 ratio</th>
+          <th>&#8805;\u00a31M</th><th>&#8805;\u00a35M</th><th>&#8805;\u00a310M</th></tr>
+  `;
+  for (let i = 0; i < tl.length; i += step) {
+    const r = tl[i];
+    html += `<tr>
+      <td>${r.season}</td>
+      <td>${formatMoney(r.taxCollected)}</td>
+      <td>${formatMoney(r.solidarityPaid)}</td>
+      <td>${formatMoney(r.parachutePaid)}</td>
+      <td>${formatMoney(r.leaguePrizePaid)}</td>
+      <td class="${r.wealthGap && r.wealthGap > 10 ? 'val-bad' : 'val-neutral'}">${r.wealthGap ?? '—'}</td>
+      <td>${r.millionaires}</td>
+      <td class="${r.multiMillionaires > 8 ? 'val-bad' : 'val-neutral'}">${r.multiMillionaires}</td>
+      <td class="${r.megaRich > 0 ? 'val-bad' : 'val-good'}">${r.megaRich}</td>
+    </tr>`;
+  }
+  html += '</table>';
+  if (step > 1) {
+    html += `<div class="meta-info">Showing every ${step}th season for readability (full data is in the JSON export).</div>`;
+  }
+
   return html;
 }
 
