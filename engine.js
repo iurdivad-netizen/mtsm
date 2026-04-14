@@ -170,7 +170,10 @@ const MTSM_ENGINE = (() => {
       aiManagerData,
       aiManagerLog: [],   // structured AI decision log for analysis
       transferMarketRefreshedWeek: 0,
-      transferMarketAlert: false
+      transferMarketAlert: false,
+      // Queue of parachute payments to pay out next end-of-season.
+      // Each entry: { teamName, division, amount }
+      parachutePending: []
     };
 
     return state;
@@ -474,6 +477,35 @@ const MTSM_ENGINE = (() => {
     }
   }
 
+  // English ordinal suffix for a 1-based position ("1st", "2nd", "3rd", "4th", ...)
+  function _ordinalSuffix(n) {
+    const mod100 = n % 100;
+    if (mod100 >= 11 && mod100 <= 13) return 'th';
+    switch (n % 10) {
+      case 1: return 'st';
+      case 2: return 'nd';
+      case 3: return 'rd';
+      default: return 'th';
+    }
+  }
+
+  // Marginal progressive tax on an end-of-season balance.
+  // `tiers` is an array of [lowerThreshold, rate] pairs sorted ascending by
+  // threshold. The portion of balance between each tier's threshold and the
+  // next tier's threshold (or Infinity) is taxed at that tier's rate.
+  function _computeLuxuryTax(balance, tiers) {
+    if (!tiers || tiers.length === 0 || balance <= 0) return 0;
+    let tax = 0;
+    for (let i = 0; i < tiers.length; i++) {
+      const [lower, rate] = tiers[i];
+      if (balance <= lower) break;
+      const upper = i + 1 < tiers.length ? tiers[i + 1][0] : Infinity;
+      const portion = Math.min(balance, upper) - lower;
+      tax += portion * rate;
+    }
+    return Math.floor(tax);
+  }
+
   function pushNews(entry) {
     state.news.push(entry);
     state.newsLog.push({ ...entry, season: state.season, week: state.week });
@@ -532,7 +564,7 @@ const MTSM_ENGINE = (() => {
 
         // Gate receipts
         const attendance = calculateAttendance(homeTeam, d);
-        const gateIncome = attendance * (d === 0 ? 25 : d === 1 ? 18 : d === 2 ? 12 : 8);
+        const gateIncome = attendance * MTSM_DATA.ECONOMY.TICKET_PRICE[d];
         homeTeam.balance += gateIncome;
         recordFinance(homeTeam, 'income', gateIncome, 'League gate income (home)');
 
@@ -1345,6 +1377,25 @@ const MTSM_ENGINE = (() => {
 
   // ===== END OF SEASON =====
   function processEndOfSeason() {
+    // Pay out parachute payments queued last season (one season of relief
+    // for clubs that were relegated). Teams may have moved divisions, so
+    // look them up by name.
+    if (state.parachutePending && state.parachutePending.length > 0) {
+      for (const p of state.parachutePending) {
+        const team = findTeamByName(p.teamName);
+        if (!team) continue;
+        team.balance += p.amount;
+        recordFinance(team, 'income', p.amount, 'Parachute payment');
+        if (team.isHuman) {
+          pushNews({
+            type: 'FINANCE',
+            text: `${team.name} received a £${p.amount.toLocaleString()} parachute payment following last season's relegation.`
+          });
+        }
+      }
+      state.parachutePending = [];
+    }
+
     const promotions = [];
     const relegations = [];
     const champion = [];
@@ -1363,6 +1414,18 @@ const MTSM_ENGINE = (() => {
       // Division 1 champion
       if (d === 0) {
         champion.push({ team: sorted[0].name, division: d });
+      }
+
+      // League prize money by final position (paid before promotion/relegation)
+      const prizeTable = MTSM_DATA.ECONOMY.LEAGUE_PRIZE[d];
+      if (prizeTable) {
+        for (let pos = 0; pos < sorted.length && pos < prizeTable.length; pos++) {
+          const prize = prizeTable[pos];
+          if (prize > 0) {
+            sorted[pos].balance += prize;
+            recordFinance(sorted[pos], 'income', prize, `League prize money (${pos + 1}${_ordinalSuffix(pos + 1)} in Div ${d + 1})`);
+          }
+        }
       }
 
       // Top 2 promoted (except Division 1)
@@ -1413,6 +1476,64 @@ const MTSM_ENGINE = (() => {
       pushNews({
         type: 'RELEGATION',
         text: `${releg.team.name} relegated from Division ${releg.fromDiv + 1} to Division ${releg.toDiv + 1}!`
+      });
+    }
+
+    // Queue parachute payments for next season's end-of-season processing.
+    // Paid to each relegated club one season after they drop down.
+    const parachuteTable = MTSM_DATA.ECONOMY.PARACHUTE;
+    for (const releg of relegations) {
+      const amount = parachuteTable[releg.fromDiv];
+      if (amount && amount > 0) {
+        state.parachutePending.push({
+          teamName: releg.team.name,
+          division: releg.toDiv,
+          amount
+        });
+      }
+    }
+
+    // Progressive luxury tax: collect from wealthy clubs, redistribute to
+    // lower divisions weighted toward the bottom tier. This caps runaway
+    // wealth accumulation while keeping the lower divisions competitive.
+    const taxConfig = MTSM_DATA.ECONOMY.LUXURY_TAX;
+    const shareConfig = MTSM_DATA.ECONOMY.REDISTRIBUTION_SHARE;
+    let taxPool = 0;
+    for (let d = 0; d < 4; d++) {
+      const tiers = taxConfig[d];
+      if (!tiers || tiers.length === 0) continue;
+      for (const team of state.divisions[d].teams) {
+        const owed = _computeLuxuryTax(team.balance, tiers);
+        if (owed > 0) {
+          team.balance -= owed;
+          taxPool += owed;
+          recordFinance(team, 'expense', owed, 'Luxury tax');
+          if (team.isHuman) {
+            pushNews({
+              type: 'FINANCE',
+              text: `${team.name} paid £${owed.toLocaleString()} in luxury tax on its end-of-season balance.`
+            });
+          }
+        }
+      }
+    }
+
+    if (taxPool > 0) {
+      for (const dStr of Object.keys(shareConfig)) {
+        const d = parseInt(dStr, 10);
+        const teams = state.divisions[d].teams;
+        if (!teams.length) continue;
+        const divShare = taxPool * shareConfig[d];
+        const perClub = Math.floor(divShare / teams.length);
+        if (perClub <= 0) continue;
+        for (const team of teams) {
+          team.balance += perClub;
+          recordFinance(team, 'income', perClub, 'Solidarity payment');
+        }
+      }
+      pushNews({
+        type: 'FINANCE',
+        text: `Solidarity scheme redistributed £${taxPool.toLocaleString()} from wealthy clubs to lower divisions.`
       });
     }
 
@@ -1804,7 +1925,7 @@ const MTSM_ENGINE = (() => {
 
         // Cup attendance & gate income (50/50 split)
         const attendance = calculateAttendance(homeTeam, d);
-        const ticketPrice = d === 0 ? 25 : d === 1 ? 18 : d === 2 ? 12 : 8;
+        const ticketPrice = MTSM_DATA.ECONOMY.TICKET_PRICE[d];
         const gateIncome = attendance * ticketPrice;
         const homeShare = Math.floor(gateIncome * 0.5);
         const awayShare = Math.floor(gateIncome * 0.5);
@@ -1984,7 +2105,7 @@ const MTSM_ENGINE = (() => {
       // Cup attendance & gate income (50/50 split)
       const homeDivIdx = findTeamDivisionIndex(match.home);
       const attendance = calculateAttendance(homeTeam, homeDivIdx);
-      const ticketPrice = homeDivIdx === 0 ? 25 : homeDivIdx === 1 ? 18 : homeDivIdx === 2 ? 12 : 8;
+      const ticketPrice = MTSM_DATA.ECONOMY.TICKET_PRICE[homeDivIdx];
       const gateIncome = attendance * ticketPrice;
       const homeShare = Math.floor(gateIncome * 0.5);
       const awayShare = Math.floor(gateIncome * 0.5);
@@ -3210,6 +3331,7 @@ const MTSM_ENGINE = (() => {
     if (savedState.options && savedState.options.aiManagers === undefined) savedState.options.aiManagers = false;
     if (savedState.options && savedState.options.aiManagers && !savedState.aiManagerData) savedState.aiManagerData = {};
     if (!savedState.aiManagerLog) savedState.aiManagerLog = [];
+    if (!savedState.parachutePending) savedState.parachutePending = [];
     // Ensure AI manager data has seasonHistory for backward compatibility
     if (savedState.aiManagerData) {
       for (const key of Object.keys(savedState.aiManagerData)) {
