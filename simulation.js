@@ -43,7 +43,12 @@ const MTSM_SIM = (() => {
       // AI decision summaries (flushed periodically)
       decisionSummaries: {}, // teamName -> {buys, sells, emergencySells, panicBuys, staffUpgrades, ...}
       // Match engine stats
-      matchStats: { totalGoals: 0, totalMatches: 0, homeWins: 0, awayWins: 0, draws: 0 }
+      matchStats: { totalGoals: 0, totalMatches: 0, homeWins: 0, awayWins: 0, draws: 0 },
+      // Per-season economy aggregates from engine.processEndOfSeason
+      // [{season, taxCollected, taxPayerCount, solidarityPaid, parachutePaid,
+      //   parachutePaidCount, parachuteQueued, leaguePrizePaid,
+      //   balancesByDivision: [{division, count, avg, median, max, min, over1M, over5M, over10M}]}]
+      economyHistory: []
     };
   }
 
@@ -197,6 +202,25 @@ const MTSM_SIM = (() => {
     collector.divisionMobility.push({ season: MTSM_ENGINE.getState().season - 1, movements });
   }
 
+  function collectEconomy(result, collector) {
+    if (!result || !result.economy) return;
+    // Engine records the season that just ended — state.season has already
+    // been advanced in downstream code paths, so snapshot conservatively.
+    const season = MTSM_ENGINE.getState().season - 1;
+    collector.economyHistory.push({
+      season,
+      taxCollected: result.economy.taxCollected,
+      taxDestroyed: result.economy.taxDestroyed || 0,
+      taxPayerCount: result.economy.taxPayerCount,
+      solidarityPaid: result.economy.solidarityPaid,
+      parachutePaid: result.economy.parachutePaid,
+      parachutePaidCount: result.economy.parachutePaidCount,
+      parachuteQueued: result.economy.parachuteQueued,
+      leaguePrizePaid: result.economy.leaguePrizePaid,
+      balancesByDivision: result.economy.balancesByDivision
+    });
+  }
+
   function flushAILog(collector, personalityMap) {
     const state = MTSM_ENGINE.getState();
     const log = (state && state.aiManagerLog) ? state.aiManagerLog : [];
@@ -295,7 +319,8 @@ const MTSM_SIM = (() => {
       matchEngineReport: generateMatchEngineReport(collector),
       mobilityReport: generateMobilityReport(collector),
       trophyReport: generateTrophyReport(collector),
-      decisionReport: generateDecisionReport(collector)
+      decisionReport: generateDecisionReport(collector),
+      economyReport: generateEconomyReport(collector)
     };
   }
 
@@ -448,6 +473,109 @@ const MTSM_SIM = (() => {
     }
     rows.sort((a, b) => b.avgBalance - a.avgBalance);
     return { title: 'Financial Health by Personality', rows };
+  }
+
+  // Aggregate the per-season economy snapshots into a report focused on
+  // whether the rebalancing mechanisms (luxury tax, solidarity payments,
+  // parachutes, league prize money) are producing healthy long-run dynamics.
+  function generateEconomyReport(collector) {
+    const history = collector.economyHistory || [];
+    if (history.length === 0) {
+      return { title: 'Economy Balance Report', seasons: 0, empty: true };
+    }
+
+    let totalTax = 0, totalSolidarity = 0, totalParachute = 0, totalPrize = 0;
+    let totalTaxPayers = 0, totalParachutePaid = 0, totalDestroyed = 0;
+    for (const h of history) {
+      totalTax += h.taxCollected || 0;
+      totalDestroyed += h.taxDestroyed || 0;
+      totalSolidarity += h.solidarityPaid || 0;
+      totalParachute += h.parachutePaid || 0;
+      totalPrize += h.leaguePrizePaid || 0;
+      totalTaxPayers += h.taxPayerCount || 0;
+      totalParachutePaid += h.parachutePaidCount || 0;
+    }
+
+    // Per-division wealth trend: average across all seasons of that division's
+    // post-tax average balance, plus the latest-season snapshot for comparison.
+    const divAggregates = [[], [], [], []];
+    for (const h of history) {
+      if (!h.balancesByDivision) continue;
+      for (const b of h.balancesByDivision) {
+        divAggregates[b.division].push(b);
+      }
+    }
+    const divisionSummary = divAggregates.map((rows, d) => {
+      if (rows.length === 0) return { division: d + 1, seasons: 0 };
+      const avgOfAvgs = rows.reduce((s, r) => s + r.avg, 0) / rows.length;
+      const avgMedian = rows.reduce((s, r) => s + r.median, 0) / rows.length;
+      const maxEver = Math.max(...rows.map(r => r.max));
+      const avgOver1M = rows.reduce((s, r) => s + r.over1M, 0) / rows.length;
+      const avgOver5M = rows.reduce((s, r) => s + r.over5M, 0) / rows.length;
+      const avgOver10M = rows.reduce((s, r) => s + r.over10M, 0) / rows.length;
+      const last = rows[rows.length - 1];
+      return {
+        division: d + 1,
+        seasons: rows.length,
+        avgBalance: Math.round(avgOfAvgs),
+        medianBalance: Math.round(avgMedian),
+        maxBalanceEver: maxEver,
+        avgMillionaires: +avgOver1M.toFixed(2),
+        avgMultiMillionaires: +avgOver5M.toFixed(2),
+        avgMegaRich: +avgOver10M.toFixed(2),
+        finalAvgBalance: last.avg,
+        finalMillionaires: last.over1M,
+        finalMultiMillionaires: last.over5M,
+        finalMegaRich: last.over10M
+      };
+    });
+
+    // Per-season timeline (for plotting / debugging).
+    const timeline = history.map(h => ({
+      season: h.season,
+      taxCollected: h.taxCollected,
+      taxDestroyed: h.taxDestroyed || 0,
+      solidarityPaid: h.solidarityPaid,
+      parachutePaid: h.parachutePaid,
+      leaguePrizePaid: h.leaguePrizePaid,
+      // Wealth concentration: Div1 avg / Div4 avg as a "wealth gap" ratio
+      wealthGap: (() => {
+        const d1 = (h.balancesByDivision || []).find(b => b.division === 0);
+        const d4 = (h.balancesByDivision || []).find(b => b.division === 3);
+        if (!d1 || !d4 || d4.avg === 0) return null;
+        return +(d1.avg / Math.max(1, d4.avg)).toFixed(2);
+      })(),
+      // Millionaire footprint across all divisions
+      millionaires: (h.balancesByDivision || []).reduce((s, b) => s + b.over1M, 0),
+      multiMillionaires: (h.balancesByDivision || []).reduce((s, b) => s + b.over5M, 0),
+      megaRich: (h.balancesByDivision || []).reduce((s, b) => s + b.over10M, 0)
+    }));
+
+    const seasons = history.length;
+    return {
+      title: 'Economy Balance Report',
+      seasons,
+      totals: {
+        taxCollected: totalTax,
+        taxDestroyed: totalDestroyed,
+        solidarityPaid: totalSolidarity,
+        parachutePaid: totalParachute,
+        leaguePrizePaid: totalPrize,
+        taxPayerCount: totalTaxPayers,
+        parachutePaidCount: totalParachutePaid
+      },
+      averages: {
+        taxPerSeason: Math.round(totalTax / seasons),
+        taxDestroyedPerSeason: Math.round(totalDestroyed / seasons),
+        solidarityPerSeason: Math.round(totalSolidarity / seasons),
+        parachutePerSeason: Math.round(totalParachute / seasons),
+        leaguePrizePerSeason: Math.round(totalPrize / seasons),
+        taxPayersPerSeason: +(totalTaxPayers / seasons).toFixed(1),
+        parachutesPaidPerSeason: +(totalParachutePaid / seasons).toFixed(1)
+      },
+      divisionSummary,
+      timeline
+    };
   }
 
   function generateMatchEngineReport(collector) {
@@ -681,6 +809,7 @@ const MTSM_SIM = (() => {
       // Process end of season (promotions, relegations, aging, etc.)
       const result = MTSM_ENGINE.processEndOfSeason();
       collectPromotionRelegation(result, collector, personalityMap);
+      collectEconomy(result, collector);
 
       // Progress callback
       if (config.onProgress) {

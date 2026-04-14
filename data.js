@@ -131,14 +131,26 @@ const MTSM_DATA = (() => {
     // Keys are division index. Each tier = [lowerThreshold, rateOnPortionAbove].
     // Evaluated cumulatively: portion of balance between this tier's threshold
     // and the next tier's threshold (or Infinity) is taxed at `rate`.
+    // Every division is taxed (with lower divisions taxed more gently) so no
+    // tier can hoard infinitely.
     LUXURY_TAX: {
       0: [[2000000, 0.25], [5000000, 0.50], [10000000, 0.75]],
-      1: [[1000000, 0.25], [3000000, 0.50], [ 6000000, 0.75]],
-      2: [[ 500000, 0.25], [1500000, 0.50], [ 3000000, 0.75]],
-      3: [] // Div 4 exempt
+      1: [[ 800000, 0.30], [2500000, 0.55], [ 5000000, 0.80]],
+      2: [[ 400000, 0.30], [1250000, 0.55], [ 2500000, 0.80]],
+      3: [[ 200000, 0.20], [ 500000, 0.40], [ 1500000, 0.65]]
     },
-    // Share of the collected tax pool going to each lower division.
-    // Weighted toward Div 4 to prioritize the neediest clubs.
+    // Fraction of collected tax that is destroyed ("league operating costs")
+    // rather than redistributed. Without this sink the tax pool compounds
+    // every season because nothing ever leaves the game economy.
+    TAX_SINK_RATE: 0.5,
+    // Hard cap on the solidarity pool actually redistributed per season.
+    // Any amount above this (after the sink is applied) is also destroyed.
+    // Prevents runaway inflation when the tax take grows faster than clubs
+    // can spend the money in lower divisions.
+    SOLIDARITY_CAP: 3000000,
+    // Share of the post-sink, post-cap pool going to each lower division.
+    // Weighted toward Div 4 to prioritize the neediest clubs. (Div 1 does
+    // not receive solidarity — it is the primary source.)
     REDISTRIBUTION_SHARE: { 1: 0.20, 2: 0.30, 3: 0.50 },
     // League prize money paid at end of season by final league position
     // (index 0 = 1st place, 15 = 16th). 16 entries per division.
