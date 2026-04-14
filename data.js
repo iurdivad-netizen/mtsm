@@ -120,6 +120,39 @@ const MTSM_DATA = (() => {
     pitch: { levels: ['Muddy','Acceptable','Good','Excellent','Perfect'], costs: [0, 20000, 60000, 150000, 350000] }
   };
 
+  // ===== Economy balance config =====
+  // Applied at end of season to curb runaway wealth accumulation in top divisions
+  // and keep lower divisions competitive. See processEndOfSeason() in engine.js.
+  const ECONOMY = {
+    // Per-match ticket price by division index (0 = Div1). Narrowed from
+    // [25,18,12,8] to reduce the compounding inflow gap between divisions.
+    TICKET_PRICE: [20, 15, 11, 9],
+    // Progressive luxury tax — marginal rates applied on end-of-season balance.
+    // Keys are division index. Each tier = [lowerThreshold, rateOnPortionAbove].
+    // Evaluated cumulatively: portion of balance between this tier's threshold
+    // and the next tier's threshold (or Infinity) is taxed at `rate`.
+    LUXURY_TAX: {
+      0: [[2000000, 0.25], [5000000, 0.50], [10000000, 0.75]],
+      1: [[1000000, 0.25], [3000000, 0.50], [ 6000000, 0.75]],
+      2: [[ 500000, 0.25], [1500000, 0.50], [ 3000000, 0.75]],
+      3: [] // Div 4 exempt
+    },
+    // Share of the collected tax pool going to each lower division.
+    // Weighted toward Div 4 to prioritize the neediest clubs.
+    REDISTRIBUTION_SHARE: { 1: 0.20, 2: 0.30, 3: 0.50 },
+    // League prize money paid at end of season by final league position
+    // (index 0 = 1st place, 15 = 16th). 16 entries per division.
+    LEAGUE_PRIZE: {
+      0: [500000,350000,250000,150000,150000,150000, 75000, 75000, 75000, 75000, 25000, 25000, 25000, 25000, 10000, 10000],
+      1: [300000,200000,150000, 80000, 80000, 80000, 40000, 40000, 40000, 40000, 15000, 15000, 15000, 15000,  5000,  5000],
+      2: [150000,100000, 75000, 40000, 40000, 40000, 20000, 20000, 20000, 20000, 10000, 10000, 10000, 10000,  3000,  3000],
+      3: [ 75000, 50000, 35000, 20000, 20000, 20000, 10000, 10000, 10000, 10000,  5000,  5000,  5000,  5000,  2000,  2000]
+    },
+    // One-season parachute payment for relegated clubs, paid the season AFTER
+    // relegation. Keyed by the division the club was relegated FROM.
+    PARACHUTE: { 0: 300000, 1: 150000, 2: 75000 }
+  };
+
   const RANDOM_EVENTS = [
     { type: 'violence', text: 'Crowd violence at {team}! The FA has fined your club £{amount}.', minFine: 5000, maxFine: 25000 },
     { type: 'tv', text: 'Your next match has been selected for live television! Bonus income: £{amount}.', minBonus: 10000, maxBonus: 40000 },
@@ -440,6 +473,7 @@ const MTSM_DATA = (() => {
     ACADEMY_QUALITY,
     YOUTH_COACH_QUALITY,
     GROUND_UPGRADES,
+    ECONOMY,
     RANDOM_EVENTS,
     AI_MANAGER_TYPES,
     AI_MANAGER_NAMES,
