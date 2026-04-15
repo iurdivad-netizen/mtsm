@@ -153,7 +153,7 @@ const MTSM_UI = (() => {
             <button class="btn btn-small" onclick="MTSM_UI._toggleTitlePanel('changelog')">📜 CHANGELOG</button>
           </div>
           <div class="text-muted" style="font-size:14px;">Up to 4 players • 64 teams • 4 divisions</div>
-          <div class="title-version">v0.14.0 • Last updated 2026-04-02</div>
+          <div class="title-version">v0.15.0 • Last updated 2026-04-15</div>
         </div>
         <div id="title-info-panel"></div>
         <input type="file" id="load-file-input" accept=".json" style="display:none;" onchange="MTSM_UI._handleLoadFile(event)">
@@ -185,7 +185,9 @@ const MTSM_UI = (() => {
         <li><b>Multiplayer</b> — Up to 4 human managers in a shared game</li>
         <li><b>AI Managers</b> — 5 personality types with season-phase awareness and activity logging</li>
         <li><b>Promotion &amp; Relegation</b> — Top 2 up, bottom 2 down each season</li>
-        <li><b>Match Engine</b> — Position-weighted OVR, skill-aware simulation with realistic stats</li>
+        <li><b>Match Engine</b> — Position-weighted OVR, rebalanced so a 99-OVR squad wins ~80% vs 70-75 OVR sides</li>
+        <li><b>Pre-Match Tactics</b> — Mentality (Attacking/Balanced/Defensive), Key Player boost, Scout Opponent</li>
+        <li><b>Formation Counters</b> — Rock-paper-scissors bonus when your formation counters the opponent's</li>
         <li><b>Save/Load</b> — JSON export, multi-slot saves, auto-save; works offline as a PWA</li>
         <li><b>AI Simulation Lab</b> — Standalone tool for studying AI personality behaviour</li>
       </ul>
@@ -204,6 +206,7 @@ const MTSM_UI = (() => {
       <ul>
         <li>Weekly wages, gate income, detailed bank statements</li>
         <li>Emergency loan system with selectable repayment terms (30–150 weeks)</li>
+        <li>Economy balancing: luxury tax, prize money, parachute payments</li>
         <li>Transfer market with position, rating, and age filters</li>
         <li>Market refreshes every 9 weeks with alert notifications</li>
         <li>Random events: TV bonuses, sponsorships, grants, fines</li>
@@ -259,6 +262,22 @@ const MTSM_UI = (() => {
   function _renderChangelogPanel() {
     return `<div class="title-info-box">
       <h2>Changelog</h2>
+
+      <h3>v0.15.0 — 2026-04-15</h3>
+      <ul>
+        <li>Rebalanced match engine: 99-OVR side wins ~80% vs 70-75 OVR (up from ~55-60%)</li>
+        <li>Favourites' goals smoothed; underdog damping reduces flukey upsets</li>
+        <li>Pre-match tactics: Mentality (Attacking/Balanced/Defensive), Key Player, Scout Opponent</li>
+        <li>Formation rock-paper-scissors: +3 bonus for countering opponent's formation</li>
+        <li>AI managers now pick mentality &amp; key players each week</li>
+      </ul>
+
+      <h3>v0.14.1 — 2026-04-14</h3>
+      <ul>
+        <li>Economy balancing: luxury tax, prize money, parachute payments</li>
+        <li>Economy report in the simulation lab</li>
+        <li><b>Fixed:</b> Solidarity feedback loop so money actually leaves the economy</li>
+      </ul>
 
       <h3>v0.14.0 — 2026-04-02</h3>
       <ul>
