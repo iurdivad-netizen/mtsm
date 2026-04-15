@@ -1,6 +1,6 @@
 # MULTI PSM
 
-> Version 0.14.0 | Last updated: 2026-04-02
+> Version 0.15.0 | Last updated: 2026-04-15
 
 A retro-styled, browser-based football management simulation game inspired by classic 1991 management games. Manage your club across 4 divisions, compete in cup competitions, develop youth talent, and climb to the top.
 
@@ -64,6 +64,7 @@ Save/load your progress at any time via JSON file export, save slots, or auto-sa
 - Random financial events: TV bonuses, sponsorships, council grants, crowd violence fines
 - Bankruptcy threshold at -£50k triggers sacking
 - **Emergency loan system** for clubs in debt with user-selectable repayment terms (30-150 weeks)
+- **Economy balancing** -- luxury tax on high wage bills, prize money, and parachute payments for relegated clubs
 
 ### Transfer Market
 

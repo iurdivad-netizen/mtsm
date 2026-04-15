@@ -27,6 +27,15 @@ All notable changes to MULTI PSM are documented in this file.
 - AI managers now pick mentality (per-personality) and a key player each week,
   so the human isn't the only side playing tactically.
 
+## v0.14.1 — 2026-04-14
+
+### Added
+- Economy balancing: luxury tax, prize money, and parachute payments
+- Economy report in the simulation lab
+
+### Fixed
+- Solidarity feedback loop closed so money actually leaves the economy
+
 ## v0.14.0 — 2026-04-02
 
 ### Fixed
