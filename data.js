@@ -264,7 +264,12 @@ const MTSM_DATA = (() => {
       goalsFor: 0,
       goalsAgainst: 0,
       played: 0,
-      form: [] // last 5 results: W/D/L
+      form: [], // last 5 results: W/D/L
+      // Pre-match tactics layer (see engine.js calculateTeamStrength/MENTALITIES)
+      mentality: 'balanced',   // 'attacking' | 'balanced' | 'defensive'
+      keyPlayerId: null,       // starter who gets a focus boost this match
+      scoutingUsed: false,     // one-shot prep bonus per match
+      scoutReport: null        // snapshot of opponent when scouted (human only)
     };
   }
 
@@ -365,7 +370,8 @@ const MTSM_DATA = (() => {
       trainingStyle: 'weakest', // train each player's weakest skill
       youthMinPotential: 80,   // only sign youth with potential >= this
       riskTolerance: 0.2,
-      panicBuyThreshold: 3     // consecutive losses before panic buying
+      panicBuyThreshold: 3,    // consecutive losses before panic buying
+      mentalityStyle: 'balanced'       // always balanced
     },
     {
       key: 'tactician',
@@ -382,7 +388,8 @@ const MTSM_DATA = (() => {
       trainingStyle: 'positional', // train position-critical skills
       youthMinPotential: 70,
       riskTolerance: 0.35,
-      panicBuyThreshold: 4
+      panicBuyThreshold: 4,
+      mentalityStyle: 'adaptive'       // attacks weaker opponents, defends vs stronger
     },
     {
       key: 'moneybag',
@@ -399,7 +406,8 @@ const MTSM_DATA = (() => {
       trainingStyle: 'minimal', // relies on buying talent
       youthMinPotential: 99,   // effectively ignores youth
       riskTolerance: 0.8,
-      panicBuyThreshold: 2
+      panicBuyThreshold: 2,
+      mentalityStyle: 'attacking'      // always attack
     },
     {
       key: 'developer',
@@ -415,6 +423,7 @@ const MTSM_DATA = (() => {
       groundPriority: ['pitch', 'safety', 'capacity'],
       trainingStyle: 'development', // focus on young players, positional skills
       youthMinPotential: 65,   // signs most youth prospects
+      mentalityStyle: 'balanced',      // conservative developers
       riskTolerance: 0.25,
       panicBuyThreshold: 5     // very patient
     },
@@ -433,7 +442,8 @@ const MTSM_DATA = (() => {
       trainingStyle: 'random',
       youthMinPotential: 60,
       riskTolerance: 0.9,
-      panicBuyThreshold: 2
+      panicBuyThreshold: 2,
+      mentalityStyle: 'wild'           // randomly attacking or defensive each week
     }
   ];
 

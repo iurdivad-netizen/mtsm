@@ -1423,6 +1423,104 @@ const MTSM_UI = (() => {
     `;
   }
 
+  // ===== PRE-MATCH PREP (Mentality / Scouting / Key Player) =====
+  // Rendered at the top of the Tactics tab. Always active — gives the manager
+  // meaningful pre-match choices that convert squad quality into consistent results.
+  function renderMatchPrep(team, startingPlayers) {
+    const mentalities = MTSM_ENGINE.MENTALITIES || {};
+    const currentMentality = team.mentality || 'balanced';
+    const next = MTSM_ENGINE.getNextOpponent(team);
+
+    // Mentality buttons with trade-off summary
+    const mentalityDescriptions = {
+      attacking: 'Attack ×1.15, Defence ×0.88. Best when you expect to dominate.',
+      balanced:  'Attack ×1.00, Defence ×1.00. Neutral — the safe default.',
+      defensive: 'Attack ×0.88, Defence ×1.15. Grind out tight games vs strong sides.'
+    };
+    const mentalityHtml = `
+      <div style="font-family:var(--font-display);font-size:10px;color:var(--color-accent);margin-bottom:6px;">MENTALITY</div>
+      <div class="btn-group mb-2" style="flex-wrap:wrap;">
+        ${['attacking', 'balanced', 'defensive'].map(key => {
+          const label = (mentalities[key] && mentalities[key].label) || key;
+          const active = key === currentMentality;
+          return `<button class="btn btn-small ${active ? 'btn-accent' : ''}" onclick="MTSM_UI._setMentality('${key}')">${label.toUpperCase()}</button>`;
+        }).join('')}
+      </div>
+      <div class="text-muted mb-4" style="font-size:12px;">${mentalityDescriptions[currentMentality] || ''}</div>
+    `;
+
+    // Key player dropdown — chosen from the current starting XI
+    const keyPlayerId = team.keyPlayerId || '';
+    const kpCandidate = keyPlayerId ? team.players.find(p => p.id === keyPlayerId) : null;
+    const kpValid = kpCandidate && kpCandidate.injured === 0 && startingPlayers.some(p => p.id === kpCandidate.id);
+    let keyPlayerHtml = '';
+    if (startingPlayers.length === 0) {
+      keyPlayerHtml = `
+        <div style="font-family:var(--font-display);font-size:10px;color:var(--color-accent);margin-bottom:6px;">KEY PLAYER</div>
+        <div class="text-muted mb-4" style="font-size:12px;">Select a starting XI first to nominate a key player (+4 to his skills this match).</div>
+      `;
+    } else {
+      const opts = ['<option value="">— None —</option>']
+        .concat([...startingPlayers]
+          .sort((a, b) => b.overall - a.overall)
+          .map(p => `<option value="${p.id}" ${p.id === keyPlayerId ? 'selected' : ''}>${p.position} · ${p.name} (OVR ${p.overall})</option>`));
+      keyPlayerHtml = `
+        <div style="font-family:var(--font-display);font-size:10px;color:var(--color-accent);margin-bottom:6px;">KEY PLAYER</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px;">
+          <select onchange="MTSM_UI._setKeyPlayer(this.value)" style="flex:1;min-width:180px;padding:6px;background:var(--color-bg);color:var(--color-text);border:1px solid var(--color-border);">
+            ${opts.join('')}
+          </select>
+        </div>
+        <div class="text-muted mb-4" style="font-size:12px;">
+          ${kpValid
+            ? `${kpCandidate.name} gets +4 to every skill for the next match, plus a +1 team-wide focus boost.`
+            : (keyPlayerId ? 'Selected player is injured or not in the starting XI — pick another.' : 'Nominate a star to focus the squad around. +4 skill boost for him next match.')}
+        </div>
+      `;
+    }
+
+    // Scouting section — one-shot per match, grants +3 prep bonus + reveals opponent info
+    let scoutHtml = '';
+    if (!next) {
+      scoutHtml = `
+        <div style="font-family:var(--font-display);font-size:10px;color:var(--color-accent);margin-bottom:6px;">SCOUT OPPONENT</div>
+        <div class="text-muted mb-4" style="font-size:12px;">No upcoming league fixture found.</div>
+      `;
+    } else if (team.scoutingUsed && team.scoutReport) {
+      const r = team.scoutReport;
+      const topList = (r.topPlayers || []).map(tp => `${tp.position} ${tp.name} (${tp.overall})`).join(', ') || 'n/a';
+      scoutHtml = `
+        <div style="font-family:var(--font-display);font-size:10px;color:var(--color-accent);margin-bottom:6px;">SCOUT REPORT — ${r.opponent}</div>
+        <div class="formation-bonus-info mb-4" style="font-size:12px;">
+          <div><b>${r.isHome ? 'Hosting' : 'Away to'}</b> ${r.opponent} (${r.competition})</div>
+          <div>Formation: <b>${r.formation}</b> · Mentality: <b>${r.mentality}</b></div>
+          <div>Strength: OVR ${r.overall} · ATK ${r.attack} · MID ${r.midfield} · DEF ${r.defense}</div>
+          <div>Recent form: ${(r.form || []).join(' ') || '—'} · Fit squad: ${r.squadSize}</div>
+          <div>Key men: ${topList}</div>
+          <div class="text-success" style="margin-top:4px;">✓ +3 prep bonus active for next match.</div>
+        </div>
+      `;
+    } else {
+      scoutHtml = `
+        <div style="font-family:var(--font-display);font-size:10px;color:var(--color-accent);margin-bottom:6px;">SCOUT OPPONENT</div>
+        <div style="margin-bottom:4px;">Next: <b>${next.opponent.name}</b> (${next.isHome ? 'home' : 'away'})</div>
+        <div class="btn-group mb-2">
+          <button class="btn btn-small" onclick="MTSM_UI._scoutOpponent()">SCOUT OPPONENT (+3 BONUS)</button>
+        </div>
+        <div class="text-muted mb-4" style="font-size:12px;">Reveals opponent formation, mentality, top 3 players and grants a +3 strength bonus for the match. One use per fixture.</div>
+      `;
+    }
+
+    return `
+      <div class="panel" style="margin-bottom:16px;padding:12px;border:1px solid var(--color-border);">
+        <div style="font-family:var(--font-display);font-size:11px;color:var(--color-accent);margin-bottom:8px;">⚔ PRE-MATCH PREP</div>
+        ${mentalityHtml}
+        ${keyPlayerHtml}
+        ${scoutHtml}
+      </div>
+    `;
+  }
+
   // ===== TACTICS (Formation + Starting XI) =====
   function renderTactics() {
     const state = MTSM_ENGINE.getState();
@@ -1527,10 +1625,14 @@ const MTSM_UI = (() => {
     const posCounts = { GK: 0, DEF: 0, MID: 0, FWD: 0 };
     startingPlayers.forEach(p => { posCounts[p.position] = (posCounts[p.position] || 0) + 1; });
 
+    // Pre-match prep (mentality, key player, scouting) — always on
+    const prepHtml = renderMatchPrep(team, startingPlayers);
+
     return `
       <div class="panel-header">📋 TACTICS — Starting XI</div>
       <div class="text-muted mb-4" style="font-size:13px;">Select your starting 11 players. Click to toggle. Subs will be on the bench.</div>
 
+      ${prepHtml}
       ${formationHtml}
 
       <div style="font-family:var(--font-display);font-size:10px;color:var(--color-accent);margin-bottom:8px;">
@@ -1602,6 +1704,27 @@ const MTSM_UI = (() => {
   function _setFormation(f) {
     const team = MTSM_ENGINE.getCurrentHumanTeam();
     const result = MTSM_ENGINE.setFormation(f, team);
+    showNotification(result.msg, !result.success);
+    renderGame('tactics');
+  }
+
+  function _setMentality(mentality) {
+    const team = MTSM_ENGINE.getCurrentHumanTeam();
+    const result = MTSM_ENGINE.setMentality(mentality, team);
+    showNotification(result.msg, !result.success);
+    renderGame('tactics');
+  }
+
+  function _setKeyPlayer(playerId) {
+    const team = MTSM_ENGINE.getCurrentHumanTeam();
+    const result = MTSM_ENGINE.setKeyPlayer(playerId || null, team);
+    showNotification(result.msg, !result.success);
+    renderGame('tactics');
+  }
+
+  function _scoutOpponent() {
+    const team = MTSM_ENGINE.getCurrentHumanTeam();
+    const result = MTSM_ENGINE.scoutOpponent(team);
     showNotification(result.msg, !result.success);
     renderGame('tactics');
   }
@@ -3766,6 +3889,9 @@ const MTSM_UI = (() => {
     _toggleOption,
     _toggleAllOptions,
     _setFormation,
+    _setMentality,
+    _setKeyPlayer,
+    _scoutOpponent,
     _signYouth,
     _releaseYouth,
     _upgradeAcademy,

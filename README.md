@@ -22,7 +22,8 @@ Save/load your progress at any time via JSON file export, save slots, or auto-sa
 - **4-Division League System** -- 64 teams (16 per division) with full round-robin seasons (30 matches)
 - **Multiplayer** -- Up to 4 human managers in a shared game, each starting in Division 4
 - **Promotion & Relegation** -- Top 2 promoted, bottom 2 relegated each season
-- **Match Simulation** -- Position-weighted OVR, skill-aware engine with realistic football statistics
+- **Match Simulation** -- Position-weighted OVR, skill-aware engine with realistic football statistics. A 99-OVR squad wins ~80% of matches vs 70-75 OVR sides; even matchups stay near real-world 48/24/28 home/draw/away splits.
+- **Pre-Match Tactics** -- Pick mentality (Attacking/Balanced/Defensive), nominate a key player for a skill focus boost, and scout the next opponent for extra prep
 - **Save/Load** -- JSON file export, multi-slot save system, and auto-save after each match week
 - **PWA Support** -- Install on your device and play offline
 - **AI Simulation Lab** -- Standalone tool for studying AI personality behaviour without playing
