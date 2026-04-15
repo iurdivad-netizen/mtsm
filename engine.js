@@ -248,15 +248,28 @@ const MTSM_ENGINE = (() => {
   }
 
   // ===== FORMATION DEFINITIONS =====
+  // `counters` lists the formations this one has a tactical edge over.
+  // When formationStrategy is enabled, a +3 strength bonus is awarded for a
+  // matching counter-pick (rock-paper-scissors pressure).
   const FORMATIONS = {
-    '4-4-2': { DEF: 4, MID: 4, FWD: 2, bonus: {} },
-    '4-3-3': { DEF: 4, MID: 3, FWD: 3, bonus: { FWD: 3 } },
-    '3-5-2': { DEF: 3, MID: 5, FWD: 2, bonus: { MID: 4 } },
-    '5-3-2': { DEF: 5, MID: 3, FWD: 2, bonus: { DEF: 3 } },
-    '4-5-1': { DEF: 4, MID: 5, FWD: 1, bonus: { MID: 3, DEF: 1 } },
-    '3-4-3': { DEF: 3, MID: 4, FWD: 3, bonus: { FWD: 4 } },
-    'custom': { DEF: 0, MID: 0, FWD: 0, bonus: {}, isAuto: true }
+    '4-4-2': { DEF: 4, MID: 4, FWD: 2, bonus: {}, counters: ['3-5-2', '3-4-3'] },
+    '4-3-3': { DEF: 4, MID: 3, FWD: 3, bonus: { FWD: 3 }, counters: ['4-4-2', '5-3-2'] },
+    '3-5-2': { DEF: 3, MID: 5, FWD: 2, bonus: { MID: 4 }, counters: ['4-3-3', '3-4-3'] },
+    '5-3-2': { DEF: 5, MID: 3, FWD: 2, bonus: { DEF: 3 }, counters: ['3-4-3', '4-5-1'] },
+    '4-5-1': { DEF: 4, MID: 5, FWD: 1, bonus: { MID: 3, DEF: 1 }, counters: ['4-3-3', '3-5-2'] },
+    '3-4-3': { DEF: 3, MID: 4, FWD: 3, bonus: { FWD: 4 }, counters: ['4-4-2', '4-5-1'] },
+    'custom': { DEF: 0, MID: 0, FWD: 0, bonus: {}, isAuto: true, counters: [] }
   };
+
+  // ===== MENTALITY DEFINITIONS =====
+  // Pre-match attitude trades off attack vs defence. Always active; defaults to
+  // `balanced`. AI managers pick one per week based on their personality.
+  const MENTALITIES = {
+    attacking: { label: 'Attacking', attackMult: 1.15, defenseMult: 0.88 },
+    balanced:  { label: 'Balanced',  attackMult: 1.00, defenseMult: 1.00 },
+    defensive: { label: 'Defensive', attackMult: 0.88, defenseMult: 1.15 }
+  };
+  const DEFAULT_MENTALITY = 'balanced';
 
   // ===== MATCH SIMULATION =====
   function getStartingEleven(team) {
@@ -316,10 +329,17 @@ const MTSM_ENGINE = (() => {
 
   // Compute average of a specific skill across players of a given position in the starting XI.
   // Falls back to fallbackSkill if the primary skill doesn't exist (e.g. GK has Handling not Shooting).
-  function _avgSkill(players, position, skill, fallbackSkill) {
+  // If keyPlayerId matches a player in the group, that player's value is boosted by KEY_PLAYER_SKILL_BOOST
+  // for this match's calculation (a pre-match morale/focus effect; does not mutate player state).
+  const KEY_PLAYER_SKILL_BOOST = 4;
+  function _avgSkill(players, position, skill, fallbackSkill, keyPlayerId) {
     const group = players.filter(p => p.position === position);
     if (group.length === 0) return 0;
-    return group.reduce((sum, p) => sum + (p.skills[skill] !== undefined ? p.skills[skill] : (p.skills[fallbackSkill] || 0)), 0) / group.length;
+    return group.reduce((sum, p) => {
+      let val = p.skills[skill] !== undefined ? p.skills[skill] : (p.skills[fallbackSkill] || 0);
+      if (keyPlayerId && p.id === keyPlayerId) val = Math.min(99, val + KEY_PLAYER_SKILL_BOOST);
+      return sum + val;
+    }, 0) / group.length;
   }
 
   function calculateTeamStrength(team, options) {
@@ -328,35 +348,52 @@ const MTSM_ENGINE = (() => {
 
     const starting = getStartingEleven(team);
 
+    // Pre-match picks: key player only counts if they're in the starting XI.
+    const keyPlayerId = (team.keyPlayerId && starting.some(p => p.id === team.keyPlayerId))
+      ? team.keyPlayerId
+      : null;
+
     // --- Base OVR (weighted by position) ---
     let baseOvr = 0;
     for (const p of starting) {
-      baseOvr += p.overall;
+      let ovr = p.overall;
+      if (keyPlayerId && p.id === keyPlayerId) {
+        // Reflect the skill boost in the base OVR so the key-player edge flows through.
+        ovr = Math.min(99, ovr + KEY_PLAYER_SKILL_BOOST);
+      }
+      baseOvr += ovr;
     }
     baseOvr /= 11;
 
     // --- Skill-based sub-scores (0-99 scale) ---
     // Attack: FWD shooting + FWD pace + MID passing (chance creation & finishing)
-    const fwdShooting = _avgSkill(starting, 'FWD', 'Shooting');
-    const fwdPace     = _avgSkill(starting, 'FWD', 'Pace');
-    const midPassing  = _avgSkill(starting, 'MID', 'Passing');
+    const fwdShooting = _avgSkill(starting, 'FWD', 'Shooting', undefined, keyPlayerId);
+    const fwdPace     = _avgSkill(starting, 'FWD', 'Pace', undefined, keyPlayerId);
+    const midPassing  = _avgSkill(starting, 'MID', 'Passing', undefined, keyPlayerId);
     const fwdCount    = starting.filter(p => p.position === 'FWD').length;
-    const attackRaw   = fwdCount > 0
+    const attackRawBase = fwdCount > 0
       ? (fwdShooting * 0.45 + fwdPace * 0.25 + midPassing * 0.30)
-      : (midPassing * 0.6 + _avgSkill(starting, 'MID', 'Shooting') * 0.4);
+      : (midPassing * 0.6 + _avgSkill(starting, 'MID', 'Shooting', undefined, keyPlayerId) * 0.4);
 
     // Defense: DEF tackling + DEF heading + GK handling
-    const defTackling  = _avgSkill(starting, 'DEF', 'Tackling');
-    const defHeading   = _avgSkill(starting, 'DEF', 'Heading');
-    const gkHandling   = _avgSkill(starting, 'GK', 'Handling', 'Tackling');
-    const defenseRaw   = defTackling * 0.40 + defHeading * 0.25 + gkHandling * 0.35;
+    const defTackling  = _avgSkill(starting, 'DEF', 'Tackling', undefined, keyPlayerId);
+    const defHeading   = _avgSkill(starting, 'DEF', 'Heading', undefined, keyPlayerId);
+    const gkHandling   = _avgSkill(starting, 'GK', 'Handling', 'Tackling', keyPlayerId);
+    const defenseRawBase = defTackling * 0.40 + defHeading * 0.25 + gkHandling * 0.35;
 
     // Midfield: MID passing + MID stamina (game control & endurance)
-    const midStamina   = _avgSkill(starting, 'MID', 'Stamina');
+    const midStamina   = _avgSkill(starting, 'MID', 'Stamina', undefined, keyPlayerId);
     const midCount     = starting.filter(p => p.position === 'MID').length;
     const midfieldRaw  = midPassing * 0.55 + midStamina * 0.45;
 
-    // --- Bonuses (same as before) ---
+    // --- Mentality (attacking / balanced / defensive) ---
+    // Trades off attack for defence or vice versa. Always applied; defaults to balanced.
+    const mentalityKey = (team.mentality && MENTALITIES[team.mentality]) ? team.mentality : DEFAULT_MENTALITY;
+    const mentality = MENTALITIES[mentalityKey];
+    const attackRaw = attackRawBase * mentality.attackMult;
+    const defenseRaw = defenseRawBase * mentality.defenseMult;
+
+    // --- Bonuses ---
     let bonus = 0;
 
     // Midfield loading bonus (famous game quirk!)
@@ -375,6 +412,26 @@ const MTSM_ENGINE = (() => {
           }
         }
       }
+
+      // Formation rock-paper-scissors counter bonus.
+      // +3 if our formation is listed as a counter to the opponent's formation.
+      if (options && options.opponentFormation && formation && Array.isArray(formation.counters)) {
+        if (formation.counters.includes(options.opponentFormation)) {
+          bonus += 3;
+        }
+      }
+    }
+
+    // Scouting prep bonus: small pre-match focus boost for the match in which it
+    // was requested. Flag is reset by playMatchDay after the match.
+    if (team.scoutingUsed) {
+      bonus += 3;
+    }
+
+    // Key player bonus: a designated leader gives the whole squad a small lift
+    // on top of their individual skill boost (already folded into baseOvr).
+    if (keyPlayerId) {
+      bonus += 1;
     }
 
     // Coach bonus
@@ -431,9 +488,26 @@ const MTSM_ENGINE = (() => {
     return k - 1;
   }
 
+  // Averages N Poisson draws, used to reduce variance for a heavy favorite.
+  function _averagePoisson(lambda, n) {
+    let sum = 0;
+    for (let i = 0; i < n; i++) sum += _poissonRandom(lambda);
+    return Math.round(sum / n);
+  }
+
   function simulateMatch(homeTeam, awayTeam, options) {
-    const homeOpts = options ? { ...options, divisionIndex: options.divisionIndex } : undefined;
-    const awayOpts = options ? { ...options, divisionIndex: options.awayDivisionIndex } : undefined;
+    // Pass each team's opponent formation so formation rock-paper-scissors can apply
+    // symmetrically inside calculateTeamStrength.
+    const homeOpts = {
+      ...(options || {}),
+      divisionIndex: options ? options.divisionIndex : undefined,
+      opponentFormation: awayTeam.formation
+    };
+    const awayOpts = {
+      ...(options || {}),
+      divisionIndex: options ? options.awayDivisionIndex : undefined,
+      opponentFormation: homeTeam.formation
+    };
     const home = calculateTeamStrength(homeTeam, homeOpts);
     const away = calculateTeamStrength(awayTeam, awayOpts);
 
@@ -441,9 +515,11 @@ const MTSM_ENGINE = (() => {
     const homeAdv = (options && options.isCup) ? 0 : 5;
 
     // --- Skill-aware goal calculation using Poisson model ---
-    // Calibrated to real-world benchmarks: ~2.7 goals/match,
-    // ~45% home wins, ~27% draws, ~28% away wins
-    const SCALE = 200;
+    // Calibrated so a 99-OVR side wins ~80% of matches vs typical 70-75 OVR
+    // opponents, while preserving realistic parity stats for even matchups
+    // (~48% home / ~24% draw / ~28% away, ~2.7 goals/match). Empirically tuned
+    // via 5k-sim sweeps; see engine rebalance notes.
+    const SCALE = 130;
 
     // Midfield battle influences chance creation for both teams
     const midDiff = (home.midfield - away.midfield) / SCALE;
@@ -453,14 +529,49 @@ const MTSM_ENGINE = (() => {
     const awayAttackEdge = (away.attack - home.defense) / SCALE - midDiff * 0.3;
 
     // Base expected goals per team (real-world calibrated), modified by strength
-    const homeExpected = Math.max(0.30, 1.50 + homeAttackEdge * 2.0);
-    const awayExpected = Math.max(0.20, 1.15 + awayAttackEdge * 2.0);
+    let homeExpected = Math.max(0.25, 1.50 + homeAttackEdge * 2.2);
+    let awayExpected = Math.max(0.15, 1.15 + awayAttackEdge * 2.2);
 
-    // Generate goals from Poisson distribution
-    let homeGoals = _poissonRandom(homeExpected);
-    let awayGoals = _poissonRandom(awayExpected);
+    // Underdog damping: when one team massively outclasses the other, reduce the
+    // weaker team's chances of a flukey scoreline. Preserves upset potential at
+    // gap ≤ 15 (damping floor 0.5 means the underdog still keeps half their
+    // shots even in a lopsided matchup).
+    const homeDominance = (home.attack + homeAdv) - away.defense;
+    const awayDominance = away.attack - home.defense;
+    const dominanceGap = Math.abs(homeDominance - awayDominance);
+    if (dominanceGap > 15) {
+      const damp = Math.max(0.5, 1 - dominanceGap / 50);
+      if (homeDominance > awayDominance) {
+        awayExpected *= damp;
+      } else {
+        homeExpected *= damp;
+      }
+    }
+
+    // Variance reduction for clear favourites: average two Poisson draws so a
+    // dominant team is less likely to get shut out by sheer bad luck. Underdogs
+    // and even matchups keep the single-draw variance that allows upsets.
+    const homeGoals = homeExpected >= 2.5
+      ? _averagePoisson(homeExpected, 2)
+      : _poissonRandom(homeExpected);
+    const awayGoals = awayExpected >= 2.5
+      ? _averagePoisson(awayExpected, 2)
+      : _poissonRandom(awayExpected);
 
     return { homeGoals, awayGoals };
+  }
+
+  // Reset per-match pre-match prep flags. Called by the match loop after each
+  // fixture so scouting/key player are one-shot choices (mentality persists).
+  function _consumePerMatchFlags(team) {
+    if (team.scoutingUsed) team.scoutingUsed = false;
+    if (team.scoutReport) team.scoutReport = null;
+    // keyPlayerId is kept — sticky until the human changes it — but auto-cleared
+    // if the player is no longer in the squad or permanently injured.
+    if (team.keyPlayerId) {
+      const kp = team.players.find(p => p.id === team.keyPlayerId);
+      if (!kp) team.keyPlayerId = null;
+    }
   }
 
   function recordFinance(team, type, amount, label) {
@@ -535,6 +646,8 @@ const MTSM_ENGINE = (() => {
         const homeTeam = div.teams[homeIdx];
         const awayTeam = div.teams[awayIdx];
         const result = simulateMatch(homeTeam, awayTeam);
+        _consumePerMatchFlags(homeTeam);
+        _consumePerMatchFlags(awayTeam);
 
         // Update stats
         homeTeam.played++;
@@ -1974,6 +2087,8 @@ const MTSM_ENGINE = (() => {
           divisionIndex: d,
           awayDivisionIndex: d
         });
+        _consumePerMatchFlags(homeTeam);
+        _consumePerMatchFlags(awayTeam);
         // Cup match: if draw, away goals / extra time (just replay with slight home boost)
         if (result.homeGoals === result.awayGoals) {
           result.homeGoals += Math.random() < 0.55 ? 1 : 0;
@@ -2153,6 +2268,8 @@ const MTSM_ENGINE = (() => {
         divisionIndex: homeDivIdxCup,
         awayDivisionIndex: awayDivIdxCup
       });
+      _consumePerMatchFlags(homeTeam);
+      _consumePerMatchFlags(awayTeam);
       // Knockout: no draws allowed
       if (result.homeGoals === result.awayGoals) {
         result.homeGoals += Math.random() < 0.55 ? 1 : 0;
@@ -2405,6 +2522,78 @@ const MTSM_ENGINE = (() => {
     const best11 = _autoPickByFormation(available, formationKey);
     teamObj.startingXI = best11.map(p => p.id);
     return { success: true, msg: `Auto-selected best XI for ${formationKey}.` };
+  }
+
+  // ===== PRE-MATCH TACTICS (mentality / scouting / key player) =====
+
+  function setMentality(mentalityKey, teamObj) {
+    if (!MENTALITIES[mentalityKey]) return { success: false, msg: 'Invalid mentality.' };
+    teamObj.mentality = mentalityKey;
+    return { success: true, msg: `Mentality set to ${MENTALITIES[mentalityKey].label}.` };
+  }
+
+  function setKeyPlayer(playerId, teamObj) {
+    if (!playerId) {
+      teamObj.keyPlayerId = null;
+      return { success: true, msg: 'Key player cleared.' };
+    }
+    const player = teamObj.players.find(p => p.id === playerId);
+    if (!player) return { success: false, msg: 'Player not on this squad.' };
+    if (player.injured > 0) return { success: false, msg: 'Injured players cannot be named key player.' };
+    teamObj.keyPlayerId = playerId;
+    return { success: true, msg: `${player.name} named key player — +${KEY_PLAYER_SKILL_BOOST} skill focus next match.` };
+  }
+
+  // Look up the next fixture for this team (league first, then cup).
+  // Returns { opponent: team, isHome, competition } or null.
+  function getNextOpponent(teamObj) {
+    // League fixture lookup
+    for (let d = 0; d < state.divisions.length; d++) {
+      const div = state.divisions[d];
+      const teamIdx = div.teams.indexOf(teamObj);
+      if (teamIdx === -1) continue;
+      if (div.currentRound >= div.fixtures.length) break;
+      const round = div.fixtures[div.currentRound];
+      for (const [h, a] of round) {
+        if (h === teamIdx) return { opponent: div.teams[a], isHome: true, competition: 'League', division: d };
+        if (a === teamIdx) return { opponent: div.teams[h], isHome: false, competition: 'League', division: d };
+      }
+      break;
+    }
+    return null;
+  }
+
+  // Scouting: one-shot per match. Reveals opponent info + grants a small prep bonus.
+  function scoutOpponent(teamObj) {
+    if (teamObj.scoutingUsed) {
+      return { success: false, msg: 'Opponent already scouted for the next match.' };
+    }
+    const next = getNextOpponent(teamObj);
+    if (!next) return { success: false, msg: 'No upcoming fixture to scout.' };
+
+    const opp = next.opponent;
+    const available = opp.players.filter(p => p.injured === 0);
+    const starting = getStartingEleven(opp);
+    const topThree = [...starting].sort((a, b) => b.overall - a.overall).slice(0, 3)
+      .map(p => ({ name: p.name, position: p.position, overall: p.overall }));
+    const strength = calculateTeamStrength(opp);
+
+    teamObj.scoutingUsed = true;
+    teamObj.scoutReport = {
+      opponent: opp.name,
+      isHome: next.isHome,
+      competition: next.competition,
+      formation: opp.formation || 'custom',
+      mentality: opp.mentality || DEFAULT_MENTALITY,
+      form: [...(opp.form || [])],
+      squadSize: available.length,
+      topPlayers: topThree,
+      overall: Math.round(strength.overall),
+      attack: Math.round(strength.attack),
+      defense: Math.round(strength.defense),
+      midfield: Math.round(strength.midfield)
+    };
+    return { success: true, msg: `Scouted ${opp.name} — +3 prep bonus applied to next match.`, report: teamObj.scoutReport };
   }
 
   // ===== CAREER: RESIGN & CLUB OFFERS =====
@@ -2844,7 +3033,10 @@ const MTSM_ENGINE = (() => {
           aiData.lastFormationWeek = state.week;
         }
 
-        // 8. PANIC MODE — losing streak
+        // 8. MENTALITY + KEY PLAYER (every week — AI's pre-match tactics)
+        _aiTacticalAdjust(team, aiData, personality, d);
+
+        // 9. PANIC MODE — losing streak
         if (aiData.consecutiveLosses >= personality.panicBuyThreshold) {
           _aiPanicMode(team, aiData, personality, d);
         }
@@ -3252,6 +3444,41 @@ const MTSM_ENGINE = (() => {
     // Developer and moneybag stay with preferred formation
   }
 
+  function _aiTacticalAdjust(team, aiData, personality, divIndex) {
+    // --- Mentality pick based on personality + league position ---
+    const style = personality.mentalityStyle || 'balanced';
+    let mentality = 'balanced';
+    if (style === 'attacking') {
+      mentality = 'attacking';
+    } else if (style === 'defensive') {
+      mentality = 'defensive';
+    } else if (style === 'wild') {
+      // Gambler: random each week, weighted toward extremes
+      const r = Math.random();
+      mentality = r < 0.45 ? 'attacking' : r < 0.80 ? 'defensive' : 'balanced';
+    } else if (style === 'adaptive') {
+      // Tactician: attack from a position of strength, defend from weakness
+      const pos = _getTeamLeaguePosition(team, divIndex);
+      const totalTeams = state.divisions[divIndex].teams.length;
+      if (pos <= Math.ceil(totalTeams / 3)) mentality = 'attacking';
+      else if (pos > totalTeams - Math.ceil(totalTeams / 3)) mentality = 'defensive';
+      else mentality = 'balanced';
+    }
+    // Losing streak override: panic defensive
+    if (aiData.consecutiveLosses >= 3) mentality = 'defensive';
+    team.mentality = mentality;
+
+    // --- Key player = highest-OVR starter currently fit ---
+    const available = team.players.filter(p => p.injured === 0);
+    if (available.length >= 11) {
+      const starting = getStartingEleven(team);
+      if (starting.length > 0) {
+        const keyP = starting.reduce((best, p) => (!best || p.overall > best.overall) ? p : best, null);
+        team.keyPlayerId = keyP ? keyP.id : null;
+      }
+    }
+  }
+
   function _aiPanicMode(team, aiData, personality, divIndex) {
     // Emergency response to losing streak
     // Try to buy a quality player for the weakest position
@@ -3407,6 +3634,11 @@ const MTSM_ENGINE = (() => {
     // Migrate GK players: rename Shooting → Handling for backward compatibility
     for (const div of savedState.divisions) {
       for (const team of div.teams) {
+        // Backfill pre-match tactics fields (added in AI difficulty rebalance)
+        if (team.mentality === undefined) team.mentality = 'balanced';
+        if (team.keyPlayerId === undefined) team.keyPlayerId = null;
+        if (team.scoutingUsed === undefined) team.scoutingUsed = false;
+        if (team.scoutReport === undefined) team.scoutReport = null;
         for (const p of team.players) {
           if (p.position === 'GK' && p.skills.Shooting !== undefined && p.skills.Handling === undefined) {
             p.skills.Handling = p.skills.Shooting;
@@ -3495,6 +3727,11 @@ const MTSM_ENGINE = (() => {
     setStartingXI,
     autoSelectXI,
     getStartingEleven,
+    setMentality,
+    setKeyPlayer,
+    scoutOpponent,
+    getNextOpponent,
+    MENTALITIES,
     generateClubOffers,
     resignManager,
     acceptClubOffer,

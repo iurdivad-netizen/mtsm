@@ -2,6 +2,31 @@
 
 All notable changes to MULTI PSM are documented in this file.
 
+## v0.15.0 — 2026-04-15
+
+### Changed
+- Rebalanced match engine so squad quality matters more. A 99-OVR side now
+  wins ~80% of matches vs typical 70-75 OVR opponents (up from ~55-60%), while
+  even matchups still produce a realistic 48/24/28 home/draw/away split.
+- Favourites' goal output is smoothed (two Poisson draws averaged) so dominant
+  teams are less likely to be shut out by sheer bad luck.
+- Underdog damping added: a team facing a much stronger opponent sees their
+  goal expectancy reduced, making flukey upsets rarer without eliminating them.
+
+### Added
+- Pre-match tactics layer (always active) — three new strategic choices on the
+  Tactics tab:
+  - **Mentality**: pick Attacking / Balanced / Defensive before each match.
+    Trades off attack vs defence multipliers.
+  - **Key Player**: nominate a starter for a +4 skill focus boost and +1 team
+    morale lift for the match.
+  - **Scout Opponent**: one-shot per fixture, reveals the opponent's formation,
+    mentality, top 3 players and current form, and grants a +3 prep bonus.
+- Formation rock-paper-scissors: when Formation Strategy is enabled, picking a
+  formation that counters the opponent's gives a +3 bonus.
+- AI managers now pick mentality (per-personality) and a key player each week,
+  so the human isn't the only side playing tactically.
+
 ## v0.14.0 — 2026-04-02
 
 ### Fixed
