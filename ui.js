@@ -14,6 +14,9 @@ const MTSM_UI = (() => {
   // Training sorting state
   let _trainingSort = { column: 'position', direction: 'asc' };
 
+  // Tracks which human players have been warned about negative balance this match cycle
+  let _negativeBalanceWarnedPlayers = {};
+
   // ===== CONFIRMATION DIALOG =====
   function _showConfirmDialog(title, message, detail, onConfirm, icon = '⚠️') {
     const overlay = document.createElement('div');
@@ -41,6 +44,31 @@ const MTSM_UI = (() => {
     });
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) document.body.removeChild(overlay);
+    });
+  }
+
+  function _showBankruptcyConfirm(teamName, balance) {
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = `
+      <div class="confirm-dialog">
+        <div class="confirm-icon">💸</div>
+        <div class="confirm-title">FINAL WARNING</div>
+        <div class="confirm-msg">${teamName} is £${Math.abs(balance).toLocaleString()} in debt!</div>
+        <div class="confirm-detail">Advancing the week now will declare bankruptcy. You will be fired immediately. Visit Finances to secure an emergency loan or sell players.</div>
+        <div class="confirm-actions">
+          <button class="btn btn-danger" id="bk-confirm-yes">ADVANCE WEEK</button>
+          <button class="btn" id="bk-confirm-no">TAKE ACTION</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#bk-confirm-yes').addEventListener('click', () => {
+      document.body.removeChild(overlay);
+      _showBankruptcyScreen(teamName);
+    });
+    overlay.querySelector('#bk-confirm-no').addEventListener('click', () => {
+      document.body.removeChild(overlay);
     });
   }
 
@@ -2924,6 +2952,14 @@ const MTSM_UI = (() => {
       return;
     }
 
+    // Intercept if player was warned about negative balance and hasn't resolved it
+    const team = MTSM_ENGINE.getCurrentHumanTeam();
+    const playerIdx = state.currentPlayerIndex;
+    if (team && team.balance < 0 && _negativeBalanceWarnedPlayers[playerIdx]) {
+      _showBankruptcyConfirm(team.name, team.balance);
+      return;
+    }
+
     // Play matches
     const results = MTSM_ENGINE.playMatchDay();
 
@@ -3025,9 +3061,13 @@ const MTSM_UI = (() => {
       alerts.push(`Board confidence critically low at ${hp.boardConfidence}%! You will be sacked at 10%.`);
     }
 
-    // Bankruptcy warning
-    if (team.balance < -30000) {
-      alerts.push(`Severe debt: £${Math.abs(team.balance).toLocaleString()}! Bankruptcy (sacking) at -£50,000.`);
+    // Negative balance warning — sets flag so next Play press triggers bankruptcy
+    const playerIdx = state.currentPlayerIndex;
+    if (team.balance < 0) {
+      _negativeBalanceWarnedPlayers[playerIdx] = true;
+      alerts.push(`⚠️ NEGATIVE BALANCE: Club is £${Math.abs(team.balance).toLocaleString()} in debt! Secure funds (emergency loan or player sales) before next week or the club will go bankrupt and you will be fired!`);
+    } else {
+      _negativeBalanceWarnedPlayers[playerIdx] = false;
     }
 
     // Key player injuries (any player with overall >= 75)
@@ -3487,6 +3527,21 @@ const MTSM_UI = (() => {
       }
     }
     renderGame();
+  }
+
+  // ===== BANKRUPTCY SCREEN =====
+  function _showBankruptcyScreen(teamName) {
+    app().innerHTML = `
+      <div class="season-summary">
+        <div class="trophy">💸</div>
+        <h2>BANKRUPTCY!</h2>
+        <div class="text-danger mt-4" style="font-size:18px;">${teamName} has been declared bankrupt!</div>
+        <div class="text-muted mt-4">You have been dismissed as manager. The club could not survive its financial difficulties.</div>
+        <div class="mt-6">
+          <button class="btn btn-accent" onclick="MTSM_UI.renderTitle()">MAIN MENU</button>
+        </div>
+      </div>
+    `;
   }
 
   // ===== GAME OVER =====
