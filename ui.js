@@ -1400,7 +1400,7 @@ const MTSM_UI = (() => {
           <thead>
             <tr>
               <th>#</th><th>Team</th><th>P</th><th>W</th><th>D</th><th>L</th>
-              <th>GF</th><th>GA</th><th>GD</th><th>Pts</th><th>Form</th>
+              <th>GF</th><th>GA</th><th>GD</th><th>Pts</th><th>OVR</th><th>Form</th>
             </tr>
           </thead>
           <tbody>
@@ -1424,6 +1424,7 @@ const MTSM_UI = (() => {
                   <td class="num">${t.goalsAgainst}</td>
                   <td class="num">${t.goalsFor - t.goalsAgainst > 0 ? '+' : ''}${t.goalsFor - t.goalsAgainst}</td>
                   <td class="num text-accent">${t.points}</td>
+                  <td class="num">${t.players.length > 0 ? Math.round(t.players.reduce((s, p) => s + p.overall, 0) / t.players.length) : '-'}</td>
                   <td style="font-size:12px;">${t.form.map(f =>
                     `<span class="${f === 'W' ? 'text-success' : f === 'D' ? 'text-accent' : 'text-danger'}">${f}</span>`
                   ).join('')}</td>
